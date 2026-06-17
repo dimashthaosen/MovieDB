@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MovieDB — Find your next movie</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --imdb-gold: #f5c518;
+      --imdb-gold-hover: #e2b200;
+      --bg: #000000;
+      --bg-elevated: #1a1a1a;
+      --bg-card: #1f1f1f;
+      --border: #2b2b2b;
+      --text: #ffffff;
+      --text-dim: #bdbdbd;
+      --text-faint: #808080;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Roboto, Arial, system-ui, sans-serif;
+      margin: 0; background: var(--bg); color: var(--text);
+    }
+
+    /* ---- Header / nav bar ---- */
+    header {
+      display: flex; align-items: center; gap: 1rem;
+      padding: .85rem 1.5rem; background: #121212;
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    .logo {
+      background: var(--imdb-gold); color: #000;
+      font-weight: 800; font-size: 1.15rem; letter-spacing: -.5px;
+      padding: .28rem .55rem; border-radius: 6px;
+    }
+    .tagline { color: var(--text-dim); font-size: .95rem; font-weight: 500; }
+
+    /* ---- Filter bar ---- */
+    .filters {
+      display: flex; flex-wrap: wrap; gap: 1rem; align-items: end;
+      padding: 1.25rem 1.5rem; background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+    .field { display: flex; flex-direction: column; gap: .4rem; }
+    label {
+      font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+      color: var(--text-faint); font-weight: 700;
+    }
+    select, input {
+      background: #2b2b2b; color: var(--text); border: 1px solid #3a3a3a;
+      border-radius: 4px; padding: .55rem .65rem; font-size: .9rem; font-family: inherit;
+    }
+    select:focus, input:focus { outline: 2px solid var(--imdb-gold); outline-offset: -1px; }
+    select[multiple] { min-width: 170px; height: 120px; }
+    button {
+      background: var(--imdb-gold); color: #000; border: none; border-radius: 4px;
+      padding: .62rem 1.4rem; font-size: .92rem; font-weight: 700; cursor: pointer;
+      transition: background .15s ease;
+    }
+    button:hover { background: var(--imdb-gold-hover); }
+
+    /* ---- Results ---- */
+    .meta {
+      padding: 1.25rem 1.5rem .25rem; font-size: 1.05rem; font-weight: 600;
+    }
+    .meta span { color: var(--text-faint); font-weight: 400; font-size: .9rem; }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1.5rem 1.1rem; padding: 1rem 1.5rem 3rem;
+    }
+    .card {
+      background: var(--bg-card); border-radius: 10px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.5); transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,.6); }
+    .poster-wrap { position: relative; }
+    .card img {
+      width: 100%; aspect-ratio: 2/3; object-fit: cover;
+      background: #2b2b2b; display: block;
+    }
+    /* Fallback poster shown when a movie has no image. */
+    .poster-fallback {
+      width: 100%; aspect-ratio: 2/3; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: .5rem;
+      padding: 1rem; text-align: center;
+    }
+    .poster-fallback .ttl { font-size: .95rem; font-weight: 700; line-height: 1.25; color: #fff; }
+    .poster-fallback .ico { font-size: 1.6rem; opacity: .55; }
+    .rating-badge {
+      position: absolute; top: .5rem; left: .5rem;
+      background: rgba(0,0,0,.7); backdrop-filter: blur(2px);
+      border-radius: 4px; padding: .2rem .45rem;
+      display: flex; align-items: center; gap: .25rem;
+      font-size: .82rem; font-weight: 700;
+    }
+    .rating-badge .star { color: var(--imdb-gold); }
+    .card .body { padding: .65rem .75rem .9rem; }
+    .card .title {
+      font-size: .95rem; font-weight: 600; margin: 0 0 .3rem; line-height: 1.25;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .card .year { font-size: .82rem; color: var(--text-dim); }
+    .card .genres { font-size: .74rem; color: var(--text-faint); margin-top: .4rem; }
+    .empty { padding: 4rem 2rem; text-align: center; color: var(--text-faint); grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo">MovieDB</span>
+    <span class="tagline">Find your next movie</span>
+  </header>
+
+  <div class="filters">
+    <div class="field">
+      <label for="genres">Genres</label>
+      <select id="genres" multiple></select>
+    </div>
+    <div class="field">
+      <label for="genreMatch">Match</label>
+      <select id="genreMatch">
+        <option value="any">Any selected</option>
+        <option value="all">All selected</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="yearMin">Year from</label>
+      <input id="yearMin" type="number" placeholder="1900" min="1900" max="2100" />
+    </div>
+    <div class="field">
+      <label for="yearMax">Year to</label>
+      <input id="yearMax" type="number" placeholder="2026" min="1900" max="2100" />
+    </div>
+    <div class="field">
+      <label for="ratingMin">Min rating</label>
+      <input id="ratingMin" type="number" placeholder="0" min="0" max="10" step="0.5" />
+    </div>
+    <div class="field">
+      <label for="sortBy">Sort by</label>
+      <select id="sortBy">
+        <option value="popularity">Popularity</option>
+        <option value="rating">Rating</option>
+        <option value="year">Year</option>
+        <option value="title">Title</option>
+      </select>
+    </div>
+    <button id="search">Search</button>
+  </div>
+
+  <div class="meta" id="meta"></div>
+  <div class="grid" id="results"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    // Deterministic dark gradient per title, so each fallback poster is distinct.
+    function gradientFor(title) {
+      let h = 0;
+      for (let i = 0; i < title.length; i++) h = (h * 31 + title.charCodeAt(i)) % 360;
+      return `linear-gradient(150deg, hsl(${h} 45% 22%), hsl(${(h + 40) % 360} 50% 12%))`;
+    }
+
+    async function loadGenres() {
+      const genres = await fetch("/api/genres").then(r => r.json());
+      $("genres").innerHTML = genres
+        .map(g => `<option value="${g.id}">${g.name}</option>`)
+        .join("");
+    }
+
+    function buildQuery() {
+      const params = new URLSearchParams();
+      [...$("genres").selectedOptions].forEach(o => params.append("genres", o.value));
+      params.set("genre_match", $("genreMatch").value);
+      const add = (key, val) => { if (val !== "" && val != null) params.set(key, val); };
+      add("year_min", $("yearMin").value);
+      add("year_max", $("yearMax").value);
+      add("rating_min", $("ratingMin").value);
+      params.set("sort_by", $("sortBy").value);
+      return params.toString();
+    }
+
+    function card(m) {
+      const rating = m.rating ? m.rating.toFixed(1) : null;
+      const badge = rating
+        ? `<div class="rating-badge"><span class="star">★</span>${rating}</div>`
+        : "";
+      const poster = m.poster_url
+        ? `<img src="${m.poster_url}" alt="${m.title} poster" loading="lazy" />`
+        : `<div class="poster-fallback" style="background:${gradientFor(m.title)}">
+             <span class="ico">🎬</span>
+             <span class="ttl">${m.title}</span>
+           </div>`;
+      return `
+        <div class="card">
+          <div class="poster-wrap">${poster}${badge}</div>
+          <div class="body">
+            <p class="title">${m.title}</p>
+            <span class="year">${m.release_year ?? "—"}</span>
+            <div class="genres">${(m.genres || []).join(" • ")}</div>
+          </div>
+        </div>`;
+    }
+
+    async function search() {
+      $("meta").textContent = "Searching…";
+      const data = await fetch("/api/movies?" + buildQuery()).then(r => r.json());
+      $("meta").innerHTML = `Results <span>(${data.count})</span>`;
+      $("results").innerHTML = data.results.length
+        ? data.results.map(card).join("")
+        : `<div class="empty">No movies match those filters.</div>`;
+    }
+
+    $("search").addEventListener("click", search);
+    loadGenres().then(search);
+  </script>
+</body>
+</html>

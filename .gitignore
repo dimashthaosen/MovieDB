@@ -1,0 +1,7 @@
+.env
+movies.db
+__pycache__/
+*.pyc
+.venv/
+venv/
+.claude/settings.local.json
