@@ -76,6 +76,13 @@ def get(path: str, **params) -> dict:
                 resp = requests.get(f"{host}{path}", params=query, timeout=15)
                 if resp.status_code == 404:
                     raise TMDbNotFound(path)
+                if resp.status_code in (401, 403):
+                    # Bad/missing/unauthorised key — fail fast with a clear message.
+                    # Retrying would just burn the serverless timeout and 502.
+                    raise TMDbError(
+                        f"TMDb auth failed ({resp.status_code}). Check TMDB_API_KEY "
+                        f"is set correctly in the environment. Response: {resp.text[:160]}"
+                    )
                 resp.raise_for_status()
                 data = resp.json()
                 _base_url = host
