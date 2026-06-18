@@ -61,6 +61,24 @@
     button:hover { background: var(--imdb-gold-hover); }
 
     /* ---- Results ---- */
+    /* ---- Collection chips (fine-grained sub-genres) ---- */
+    .collections {
+      display: flex; gap: .5rem; overflow-x: auto; padding: 1.1rem 1.5rem .35rem;
+      scrollbar-width: thin;
+    }
+    .coll-chip {
+      white-space: nowrap; background: #2b2b2b; color: var(--text-dim);
+      border: 1px solid #3a3a3a; border-radius: 999px; padding: .42rem .85rem;
+      font-size: .82rem; font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; gap: .35rem; transition: all .12s ease;
+    }
+    .coll-chip:hover { border-color: var(--imdb-gold); color: #fff; }
+    .coll-chip.active {
+      background: var(--imdb-gold); color: #000; border-color: var(--imdb-gold); font-weight: 700;
+    }
+    .coll-chip .cnt { opacity: .55; font-size: .72rem; }
+    .coll-chip.active .cnt { opacity: .7; }
+
     .meta {
       padding: 1.25rem 1.5rem .25rem; font-size: 1.05rem; font-weight: 600;
     }
@@ -246,6 +264,7 @@
     <button id="search">Search</button>
   </div>
 
+  <div class="collections" id="collections"></div>
   <div class="meta" id="meta"></div>
   <div class="grid" id="results"></div>
 
@@ -268,6 +287,7 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
+    let activeCollection = null;  // currently selected sub-genre slug, or null
 
     // Deterministic dark gradient per title, so each fallback poster is distinct.
     function gradientFor(title) {
@@ -291,8 +311,30 @@
       add("year_min", $("yearMin").value);
       add("year_max", $("yearMax").value);
       add("rating_min", $("ratingMin").value);
+      if (activeCollection) params.set("collection", activeCollection);
       params.set("sort_by", $("sortBy").value);
       return params.toString();
+    }
+
+    async function loadCollections() {
+      const cs = await fetch("/api/collections").then(r => r.json());
+      const chips = ['<button class="coll-chip active" data-slug="">All</button>'];
+      for (const c of cs) {
+        chips.push(
+          `<button class="coll-chip" data-slug="${c.slug}">${c.emoji} ${c.label}` +
+          ` <span class="cnt">${c.count}</span></button>`
+        );
+      }
+      const bar = $("collections");
+      bar.innerHTML = chips.join("");
+      bar.addEventListener("click", (e) => {
+        const chip = e.target.closest(".coll-chip");
+        if (!chip) return;
+        activeCollection = chip.dataset.slug || null;
+        bar.querySelectorAll(".coll-chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        search();
+      });
     }
 
     // Poster image, or a gradient fallback when there's no image.
@@ -400,6 +442,7 @@
     }
 
     $("search").addEventListener("click", search);
+    loadCollections();
     loadGenres().then(search);
 
     // --- AI companion chat ---

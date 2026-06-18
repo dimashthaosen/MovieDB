@@ -28,6 +28,12 @@ def get_genres():
     return queries.list_genres()
 
 
+@app.get("/api/collections")
+def get_collections():
+    """Curated fine-grained sub-genres (Crime Noir, Anime, …) with movie counts."""
+    return queries.list_collections()
+
+
 @app.get("/api/movies")
 def get_movies(
     genres: list[int] | None = Query(default=None, description="genre ids to match"),
@@ -37,16 +43,18 @@ def get_movies(
     rating_min: float | None = Query(default=None, ge=0, le=10),
     language: str | None = None,
     runtime_max: int | None = None,
+    collection: str | None = Query(default=None, description="curated sub-genre slug, e.g. 'crime-noir'"),
     sort_by: str = Query(default="popularity", pattern="^(rating|popularity|year|title|runtime)$"),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
     """Filtered movie search. Every parameter is optional."""
+    keyword_ids = queries.keyword_ids_for_collection(collection) if collection else None
     results = queries.search_movies(
         genres=genres, genre_match=genre_match,
         year_min=year_min, year_max=year_max, rating_min=rating_min,
-        language=language, runtime_max=runtime_max,
+        language=language, runtime_max=runtime_max, keyword_ids=keyword_ids,
         sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
     )
     return {"count": len(results), "results": results}

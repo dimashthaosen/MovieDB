@@ -5,6 +5,7 @@ same function handles "all action movies after 2010 rated 7+" and
 "just show me everything" without any special-casing.
 """
 
+import subgenres
 from db import get_connection
 
 # Columns the caller is allowed to sort by -> the actual SQL expression.
@@ -26,6 +27,7 @@ def search_movies(
     rating_min: float | None = None,
     language: str | None = None,
     runtime_max: int | None = None,
+    keyword_ids: list[int] | None = None,
     sort_by: str = "popularity",
     sort_dir: str = "desc",
     limit: int = 50,
@@ -34,6 +36,14 @@ def search_movies(
     """Return movies matching the given filters as a list of dicts."""
     where: list[str] = []
     params: list = []
+
+    # --- Collection / keyword filter (movie has ANY of these keywords) ---
+    if keyword_ids:
+        kw_placeholders = ", ".join("?" for _ in keyword_ids)
+        where.append(
+            f"m.id IN (SELECT movie_id FROM movie_keywords WHERE keyword_id IN ({kw_placeholders}))"
+        )
+        params.extend(keyword_ids)
 
     # --- Genre filter (uses the junction table) -----------------------
     if genres:
@@ -114,6 +124,62 @@ def _attach_genres(conn, movies: list[dict]) -> None:
         by_movie.setdefault(r["movie_id"], []).append(r["name"])
     for m in movies:
         m["genres"] = sorted(by_movie.get(m["id"], []))
+
+
+def keyword_ids_for(names: list[str]) -> list[int]:
+    """Resolve keyword names to TMDb keyword ids (case-insensitive exact match)."""
+    if not names:
+        return []
+    conn = get_connection()
+    try:
+        placeholders = ", ".join("?" for _ in names)
+        rows = conn.execute(
+            f"SELECT id FROM keywords WHERE lower(name) IN ({placeholders})",
+            [n.lower() for n in names],
+        ).fetchall()
+        return [r["id"] for r in rows]
+    finally:
+        conn.close()
+
+
+def keyword_ids_for_collection(slug: str) -> list[int]:
+    """Resolve a collection slug to the keyword ids that define it."""
+    coll = subgenres.get(slug)
+    return keyword_ids_for(coll["keywords"]) if coll else []
+
+
+def list_collections(min_count: int = 3) -> list[dict]:
+    """Curated sub-genre collections that actually have movies, with counts.
+
+    Collections below `min_count` are dropped so the UI never shows an empty
+    chip. Sorted by count so the richest categories appear first.
+    """
+    conn = get_connection()
+    try:
+        # Pre-resolve every keyword name once into a name->id map.
+        name_to_id = {
+            r["name"].lower(): r["id"]
+            for r in conn.execute("SELECT id, name FROM keywords").fetchall()
+        }
+        result = []
+        for coll in subgenres.COLLECTIONS:
+            ids = [name_to_id[n.lower()] for n in coll["keywords"] if n.lower() in name_to_id]
+            if not ids:
+                continue
+            placeholders = ", ".join("?" for _ in ids)
+            count = conn.execute(
+                f"SELECT COUNT(DISTINCT movie_id) FROM movie_keywords WHERE keyword_id IN ({placeholders})",
+                ids,
+            ).fetchone()[0]
+            if count >= min_count:
+                result.append({
+                    "slug": coll["slug"], "label": coll["label"],
+                    "emoji": coll["emoji"], "count": count,
+                })
+        result.sort(key=lambda c: c["count"], reverse=True)
+        return result
+    finally:
+        conn.close()
 
 
 def find_by_title(title: str) -> dict | None:

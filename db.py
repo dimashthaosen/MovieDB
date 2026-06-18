@@ -40,11 +40,26 @@ CREATE TABLE IF NOT EXISTS movie_genres (
     PRIMARY KEY (movie_id, genre_id)
 );
 
+-- TMDb keywords power fine-grained "collections" (e.g. Crime Noir, Anime)
+-- that are far more specific than the 19 broad genres.
+CREATE TABLE IF NOT EXISTS keywords (
+    id   INTEGER PRIMARY KEY,                -- TMDb keyword id
+    name TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS movie_keywords (
+    movie_id   INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    keyword_id INTEGER NOT NULL REFERENCES keywords(id) ON DELETE CASCADE,
+    PRIMARY KEY (movie_id, keyword_id)
+);
+
 -- Indexes that make the common filters fast.
 CREATE INDEX IF NOT EXISTS idx_movies_year     ON movies(release_year);
 CREATE INDEX IF NOT EXISTS idx_movies_rating    ON movies(rating);
 CREATE INDEX IF NOT EXISTS idx_movies_language  ON movies(original_language);
 CREATE INDEX IF NOT EXISTS idx_mg_genre         ON movie_genres(genre_id);
+CREATE INDEX IF NOT EXISTS idx_mk_keyword        ON movie_keywords(keyword_id);
+CREATE INDEX IF NOT EXISTS idx_mk_movie          ON movie_keywords(movie_id);
 """
 
 
