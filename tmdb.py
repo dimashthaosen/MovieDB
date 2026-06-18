@@ -44,6 +44,22 @@ class TMDbNotFound(TMDbError):
     """A 404 from TMDb (e.g. unknown movie id) — not retried."""
 
 
+def _key_fingerprint() -> str:
+    """A safe, masked description of the configured key, for debugging 401s.
+
+    Reveals length and first/last 4 chars (and stray whitespace) WITHOUT
+    exposing the secret — enough to tell a correct v3 key from a v4 token,
+    a truncated paste, or a whitespace problem.
+    """
+    if not API_KEY:
+        return "(none set)"
+    stripped = API_KEY.strip()
+    desc = f"len={len(API_KEY)}, '{stripped[:4]}…{stripped[-4:]}'"
+    if stripped != API_KEY:
+        desc += " [WARNING: surrounding whitespace]"
+    return desc
+
+
 def require_key() -> None:
     if not API_KEY or API_KEY == "your_key_here":
         raise TMDbError(
@@ -80,8 +96,8 @@ def get(path: str, **params) -> dict:
                     # Bad/missing/unauthorised key — fail fast with a clear message.
                     # Retrying would just burn the serverless timeout and 502.
                     raise TMDbError(
-                        f"TMDb auth failed ({resp.status_code}). Check TMDB_API_KEY "
-                        f"is set correctly in the environment. Response: {resp.text[:160]}"
+                        f"TMDb auth failed ({resp.status_code}). Key seen: {_key_fingerprint()}. "
+                        f"Expected a 32-char v3 key. TMDb said: {resp.text[:140]}"
                     )
                 resp.raise_for_status()
                 data = resp.json()
