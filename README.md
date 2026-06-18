@@ -51,6 +51,26 @@ unselected filters are skipped. Supported filters:
 - `sort_by` (`popularity` | `rating` | `year` | `title` | `runtime`) + `sort_dir`
 - `limit` / `offset` (pagination)
 
+## Deploying (Render)
+
+The app ships with `render.yaml` and a committed `movies.db`, so deploying needs
+no external database:
+
+1. Push this repo to GitHub.
+2. On [render.com](https://render.com): **New → Blueprint**, pick this repo. Render
+   reads `render.yaml` and creates the web service.
+3. In the service's **Environment** tab, add:
+   - `OPENROUTER_API_KEY` — required for the 🤖 AI companion
+   - `TMDB_API_KEY` — only needed if you re-run the ingest later
+4. Deploy. Render runs `uvicorn main:app` and serves the app at your `*.onrender.com` URL.
+
+> SQLite works because the app only **reads** `movies.db` at runtime. To grow the
+> catalog, re-run `ingest.py` locally and commit the updated `movies.db`.
+>
+> **Note on Vercel:** this app does *not* run on Vercel as-is — Vercel's serverless
+> filesystem is read-only/ephemeral, so file-based SQLite can't be served. Vercel
+> would require migrating to a hosted database (e.g. Turso or Postgres).
+
 ## Next steps (the "recommendation" upgrade)
 
 1. **Weighted results** — sort by a blend of rating × popularity.

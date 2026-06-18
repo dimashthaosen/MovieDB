@@ -1,5 +1,6 @@
 .env
-movies.db
+# movies.db is committed so it ships with the Render deploy (read-only at runtime).
+# Re-ignore it if you switch to a hosted DB.
 __pycache__/
 *.pyc
 .venv/
