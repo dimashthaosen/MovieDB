@@ -10,14 +10,21 @@ Interactive API docs are at http://127.0.0.1:8000/docs
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import companion
 import queries
+import tmdb
 
 app = FastAPI(title="Movie Recommendation App")
+
+
+@app.exception_handler(tmdb.TMDbError)
+async def _tmdb_error(request, exc: tmdb.TMDbError):
+    """Surface TMDb outages / missing key as a clean 502 instead of a 500."""
+    return JSONResponse(status_code=502, content={"detail": f"TMDb data unavailable: {exc}"})
 
 STATIC_DIR = Path(__file__).parent / "static"
 

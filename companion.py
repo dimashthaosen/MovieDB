@@ -18,8 +18,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 import queries
+import subgenres
 
 load_dotenv()
+
+# Slugs the companion may pass to the search tool's `collection` argument.
+_COLLECTION_SLUGS = [c["slug"] for c in subgenres.COLLECTIONS]
 
 API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite:online")
@@ -32,7 +36,10 @@ SYSTEM_PROMPT = (
     "returned by one of your tools — never invent titles or rely on outside "
     "knowledge for recommendations. Use search_movies for descriptive requests "
     "(genre, era, rating, mood) and similar_movies when the user references a "
-    "specific film. Call the tools, then recommend a few options conversationally "
+    "specific film. For niche sub-genres like cyberpunk, film noir, anime, "
+    "heist, slasher or zombie movies, pass the matching `collection` argument to "
+    "search_movies rather than guessing broad genres. Call the tools, then "
+    "recommend a few options conversationally "
     "with one short reason each. Keep replies concise and warm."
 )
 
@@ -59,6 +66,11 @@ TOOLS = [
                     "year_max": {"type": "integer", "description": "Latest release year."},
                     "rating_min": {"type": "number", "description": "Minimum rating, 0-10."},
                     "language": {"type": "string", "description": "ISO 639-1 code, e.g. 'en', 'ko', 'ja'."},
+                    "collection": {
+                        "type": "string",
+                        "enum": _COLLECTION_SLUGS,
+                        "description": "A specific sub-genre to narrow to, e.g. 'cyberpunk', 'crime-noir', 'anime', 'heist'. Use this when the user names a niche category that isn't a broad genre.",
+                    },
                     "sort_by": {
                         "type": "string",
                         "enum": ["popularity", "rating", "year", "title"],
@@ -107,6 +119,7 @@ def _run_tool(name: str, args: dict) -> tuple[list[dict], str]:
     if name == "search_movies":
         genre_map = _genre_name_to_id()
         genre_ids = [genre_map[g.lower()] for g in args.get("genres", []) if g.lower() in genre_map]
+        kw_ids = queries.keyword_ids_for_collection(args["collection"]) if args.get("collection") else None
         movies = queries.search_movies(
             genres=genre_ids or None,
             genre_match=args.get("genre_match", "any"),
@@ -114,6 +127,7 @@ def _run_tool(name: str, args: dict) -> tuple[list[dict], str]:
             year_max=args.get("year_max"),
             rating_min=args.get("rating_min"),
             language=args.get("language"),
+            keyword_ids=kw_ids,
             sort_by=args.get("sort_by", "popularity"),
             limit=min(args.get("limit", 8), 15),
         )

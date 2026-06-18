@@ -1,6 +1,7 @@
 .env
-# movies.db is committed so it ships with the Render deploy (read-only at runtime).
-# Re-ignore it if you switch to a hosted DB.
+# Local-only SQLite snapshot. The deployed app serves live from TMDb, so this
+# is no longer shipped — it's just an optional cache for offline tooling.
+movies.db
 __pycache__/
 *.pyc
 .venv/

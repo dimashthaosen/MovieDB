@@ -1,6 +1,6 @@
 # Render Blueprint — deploys the MovieDB FastAPI app as a web service.
-# SQLite (movies.db) is committed to the repo and read at runtime, so no
-# external database is needed. Set the two API keys in the Render dashboard.
+# The app is stateless and serves live from the TMDb API (no database), so the
+# only setup is the two API keys, set in the Render dashboard.
 services:
   - type: web
     name: moviedb
@@ -12,6 +12,6 @@ services:
       - key: PYTHON_VERSION
         value: "3.12"
       - key: TMDB_API_KEY
-        sync: false        # set in the Render dashboard (only needed for re-ingesting data)
+        sync: false        # required at runtime — every request fetches from TMDb
       - key: OPENROUTER_API_KEY
-        sync: false        # set in the Render dashboard (needed for the AI companion)
+        sync: false        # required for the AI companion
