@@ -116,12 +116,74 @@ def _attach_genres(conn, movies: list[dict]) -> None:
         m["genres"] = sorted(by_movie.get(m["id"], []))
 
 
+def find_by_title(title: str) -> dict | None:
+    """Best-effort lookup of a movie by (partial) title, for the AI companion."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM movies WHERE title LIKE ? ORDER BY popularity DESC LIMIT 1",
+            (f"%{title}%",),
+        ).fetchone()
+        if row is None:
+            return None
+        movie = dict(row)
+        _attach_genres(conn, [movie])
+        return movie
+    finally:
+        conn.close()
+
+
 def list_genres() -> list[dict]:
     """Return all genres (for populating the UI dropdown)."""
     conn = get_connection()
     try:
         rows = conn.execute("SELECT id, name FROM genres ORDER BY name").fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_movie(movie_id: int) -> dict | None:
+    """Return a single movie (with its genres) or None if it doesn't exist."""
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+        if row is None:
+            return None
+        movie = dict(row)
+        _attach_genres(conn, [movie])
+        return movie
+    finally:
+        conn.close()
+
+
+def similar_movies(movie_id: int, limit: int = 12) -> list[dict]:
+    """Return movies most similar to the given one, ranked by shared genres.
+
+    This is the first step from *filtering* toward *recommending*: two films
+    are "alike" to the degree they share genres. Ties break on rating, so the
+    best-regarded of equally-similar films float to the top.
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT m.*, COUNT(*) AS shared_genres
+            FROM movies m
+            JOIN movie_genres mg ON mg.movie_id = m.id
+            WHERE mg.genre_id IN (
+                      SELECT genre_id FROM movie_genres WHERE movie_id = ?
+                  )
+              AND m.id != ?
+            GROUP BY m.id
+            ORDER BY shared_genres DESC, m.rating DESC
+            LIMIT ?
+            """,
+            (movie_id, movie_id, limit),
+        ).fetchall()
+        movies = [dict(r) for r in rows]
+        _attach_genres(conn, movies)
+        return movies
     finally:
         conn.close()
 

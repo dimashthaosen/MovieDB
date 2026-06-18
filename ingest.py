@@ -21,8 +21,18 @@ from db import get_connection, init_db
 load_dotenv()
 
 API_KEY = os.getenv("TMDB_API_KEY")
-BASE_URL = "https://api.themoviedb.org/3"
 IMAGE_BASE = "https://image.tmdb.org/t/p/w342"  # poster size
+
+# Some ISPs block "api.themoviedb.org" by hostname while leaving the legacy
+# "api.tmdb.org" alias reachable. We try each in order and use the first that
+# responds, so the ingest works regardless of which host the network blocks.
+API_HOSTS = [
+    "https://api.themoviedb.org/3",
+    "https://api.tmdb.org/3",
+]
+_base_url: str | None = None  # last host that worked, tried first next time
+
+MAX_ROUNDS = 6  # how many times to sweep all hosts before giving up
 
 
 def _require_key() -> None:
@@ -34,12 +44,40 @@ def _require_key() -> None:
         )
 
 
+def _candidate_hosts() -> list[str]:
+    """Hosts to try, last-known-good first."""
+    if _base_url:
+        return [_base_url] + [h for h in API_HOSTS if h != _base_url]
+    return list(API_HOSTS)
+
+
 def _get(path: str, **params) -> dict:
-    """Call a TMDb endpoint and return the parsed JSON."""
+    """Call a TMDb endpoint, retrying across hosts to survive flaky blocks.
+
+    Some ISPs reset connections to the TMDb API intermittently, so a single
+    failure isn't fatal: we sweep all known hosts, then back off and retry.
+    """
+    global _base_url
     params["api_key"] = API_KEY
-    resp = requests.get(f"{BASE_URL}{path}", params=params, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+    last_err = None
+    for attempt in range(MAX_ROUNDS):
+        for host in _candidate_hosts():
+            try:
+                resp = requests.get(f"{host}{path}", params=params, timeout=15)
+                resp.raise_for_status()
+                if host != _base_url and host != API_HOSTS[0]:
+                    print(f"  (using fallback host {host})")
+                _base_url = host
+                return resp.json()
+            except requests.RequestException as e:
+                last_err = e
+        time.sleep(1.5 * (attempt + 1))  # back off, then sweep again
+    raise SystemExit(
+        f"\nTMDb unreachable after {MAX_ROUNDS} retries (last: {type(last_err).__name__}).\n"
+        "Your network is intermittently blocking the TMDb API. Options:\n"
+        "  - connect to a VPN, or use a phone hotspot, then re-run\n"
+        "  - re-run anyway: progress is saved, so it resumes where it left off"
+    )
 
 
 def load_genres(conn) -> None:

@@ -102,7 +102,106 @@
     }
     .card .year { font-size: .82rem; color: var(--text-dim); }
     .card .genres { font-size: .74rem; color: var(--text-faint); margin-top: .4rem; }
+    .card { cursor: pointer; }
     .empty { padding: 4rem 2rem; text-align: center; color: var(--text-faint); grid-column: 1 / -1; }
+
+    /* ---- Detail modal ---- */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.82); z-index: 50;
+      display: none; align-items: flex-start; justify-content: center;
+      padding: 3rem 1rem; overflow-y: auto;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      position: relative; background: #181818; border: 1px solid var(--border);
+      border-radius: 14px; max-width: 880px; width: 100%;
+    }
+    .modal-close {
+      position: absolute; top: .75rem; right: .9rem; z-index: 2;
+      background: rgba(0,0,0,.5); color: #fff; border: none; border-radius: 50%;
+      width: 34px; height: 34px; font-size: 1.2rem; line-height: 1; cursor: pointer;
+    }
+    .modal-close:hover { background: rgba(0,0,0,.8); }
+    .modal-hero { display: flex; gap: 1.5rem; padding: 1.5rem; }
+    .modal-poster { width: 200px; flex-shrink: 0; border-radius: 10px; overflow: hidden; }
+    .modal-poster img, .modal-poster .poster-fallback { border-radius: 10px; }
+    .modal-info { flex: 1; min-width: 0; }
+    .modal-info h2 { margin: 0 .5rem 0 0; font-size: 1.55rem; line-height: 1.2; }
+    .modal-meta {
+      display: flex; flex-wrap: wrap; gap: .35rem 1rem; align-items: center;
+      color: var(--text-dim); font-size: .9rem; margin: .75rem 0 1rem;
+    }
+    .modal-meta .rating { color: var(--imdb-gold); font-weight: 700; }
+    .genre-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.1rem; }
+    .chip {
+      background: #2b2b2b; border: 1px solid #3a3a3a; border-radius: 999px;
+      padding: .25rem .7rem; font-size: .78rem; color: var(--text-dim);
+    }
+    .modal-overview { color: var(--text-dim); line-height: 1.6; font-size: .95rem; }
+    .similar { padding: 0 1.5rem 1.5rem; }
+    .similar h3 { font-size: 1rem; margin: .5rem 0 1rem; }
+    .similar-row {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1rem;
+    }
+    .mini { cursor: pointer; }
+    .mini .poster-wrap { position: relative; border-radius: 8px; overflow: hidden; }
+    .mini img, .mini .poster-fallback { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+    .mini .poster-fallback { padding: .4rem; gap: .25rem; }
+    .mini .poster-fallback .ico { font-size: 1rem; }
+    .mini .poster-fallback .ttl { font-size: .62rem; font-weight: 700; }
+    .mini .rating-badge { font-size: .68rem; padding: .12rem .35rem; top: .3rem; left: .3rem; }
+    .mini .mtitle {
+      font-size: .8rem; margin-top: .4rem; line-height: 1.25;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .mini .shared { font-size: .72rem; color: var(--imdb-gold); margin-top: .15rem; }
+    @media (max-width: 560px) {
+      .modal-hero { flex-direction: column; }
+      .modal-poster { width: 140px; }
+    }
+
+    /* ---- AI companion chat ---- */
+    .chat-fab {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 40;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--imdb-gold); color: #000; border: none; cursor: pointer;
+      font-size: 1.5rem; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.5); transition: transform .12s ease, background .15s ease;
+    }
+    .chat-fab:hover { transform: scale(1.06); }
+    .chat-fab:hover { background: var(--imdb-gold-hover); }
+    .chat-panel {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 41;
+      width: 370px; max-width: calc(100vw - 2rem);
+      height: 540px; max-height: calc(100vh - 3rem);
+      background: #1a1a1a; border: 1px solid var(--border); border-radius: 14px;
+      display: none; flex-direction: column; overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,.6);
+    }
+    .chat-panel.open { display: flex; }
+    .chat-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .8rem 1rem; background: #121212; border-bottom: 1px solid var(--border);
+    }
+    .chat-head .t { font-weight: 700; font-size: .95rem; }
+    .chat-head .t small { display: block; color: var(--text-faint); font-weight: 400; font-size: .7rem; }
+    .chat-close { background: none; border: none; color: #fff; font-size: 1.3rem; cursor: pointer; }
+    .chat-log { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: .75rem; }
+    .msg { max-width: 85%; padding: .6rem .8rem; border-radius: 12px; font-size: .9rem; line-height: 1.45; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: var(--imdb-gold); color: #000; }
+    .msg.bot { align-self: flex-start; background: #2b2b2b; color: var(--text); }
+    .msg.bot.err { background: #3a2020; color: #ffb4b4; }
+    .typing { align-self: flex-start; color: var(--text-faint); font-size: .85rem; font-style: italic; }
+    .chat-movies {
+      align-self: flex-start; width: 100%;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-top: .25rem;
+    }
+    .chat-movies .mini .poster-wrap { border-radius: 6px; }
+    .chat-movies .mini .mtitle { font-size: .7rem; }
+    .chat-form { display: flex; gap: .5rem; padding: .7rem; border-top: 1px solid var(--border); background: #121212; }
+    .chat-form input { flex: 1; }
+    .chat-form button { padding: .5rem .9rem; }
   </style>
 </head>
 <body>
@@ -150,6 +249,23 @@
   <div class="meta" id="meta"></div>
   <div class="grid" id="results"></div>
 
+  <div class="modal-backdrop" id="modal">
+    <div class="modal" id="modalContent"></div>
+  </div>
+
+  <button class="chat-fab" id="chatFab" title="Ask the AI movie companion" aria-label="Ask the AI movie companion">🤖</button>
+  <div class="chat-panel" id="chatPanel">
+    <div class="chat-head">
+      <div class="t">🎬 Movie Companion<small>Ask for a recommendation</small></div>
+      <button class="chat-close" id="chatClose" aria-label="Close">×</button>
+    </div>
+    <div class="chat-log" id="chatLog"></div>
+    <form class="chat-form" id="chatForm">
+      <input id="chatInput" type="text" placeholder="e.g. a short feel-good sci-fi" autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
 
@@ -179,20 +295,26 @@
       return params.toString();
     }
 
-    function card(m) {
-      const rating = m.rating ? m.rating.toFixed(1) : null;
-      const badge = rating
-        ? `<div class="rating-badge"><span class="star">★</span>${rating}</div>`
-        : "";
-      const poster = m.poster_url
+    // Poster image, or a gradient fallback when there's no image.
+    function posterHTML(m) {
+      return m.poster_url
         ? `<img src="${m.poster_url}" alt="${m.title} poster" loading="lazy" />`
         : `<div class="poster-fallback" style="background:${gradientFor(m.title)}">
              <span class="ico">🎬</span>
              <span class="ttl">${m.title}</span>
            </div>`;
+    }
+
+    function ratingBadge(m) {
+      return m.rating
+        ? `<div class="rating-badge"><span class="star">★</span>${m.rating.toFixed(1)}</div>`
+        : "";
+    }
+
+    function card(m) {
       return `
-        <div class="card">
-          <div class="poster-wrap">${poster}${badge}</div>
+        <div class="card" data-id="${m.id}">
+          <div class="poster-wrap">${posterHTML(m)}${ratingBadge(m)}</div>
           <div class="body">
             <p class="title">${m.title}</p>
             <span class="year">${m.release_year ?? "—"}</span>
@@ -200,6 +322,73 @@
           </div>
         </div>`;
     }
+
+    // --- Detail modal + "more like this" ---
+    const modal = $("modal");
+
+    function miniCard(m) {
+      const shared = m.shared_genres
+        ? `<div class="shared">${m.shared_genres} shared genre${m.shared_genres === 1 ? "" : "s"}</div>`
+        : "";
+      return `
+        <div class="mini" data-id="${m.id}">
+          <div class="poster-wrap">${posterHTML(m)}${ratingBadge(m)}</div>
+          <div class="mtitle">${m.title}</div>
+          ${shared}
+        </div>`;
+    }
+
+    function renderModal(m, similar) {
+      const lang = m.original_language ? m.original_language.toUpperCase() : "—";
+      const runtime = m.runtime ? `${m.runtime} min` : "Runtime n/a";
+      const votes = m.vote_count ? `${m.vote_count.toLocaleString()} votes` : "";
+      const similarRow = similar.length
+        ? similar.map(miniCard).join("")
+        : `<p style="color:var(--text-faint)">No similar titles found.</p>`;
+      $("modalContent").innerHTML = `
+        <button class="modal-close" aria-label="Close">×</button>
+        <div class="modal-hero">
+          <div class="modal-poster">${posterHTML(m)}</div>
+          <div class="modal-info">
+            <h2>${m.title}</h2>
+            <div class="modal-meta">
+              <span class="rating">★ ${m.rating ? m.rating.toFixed(1) : "–"}</span>
+              <span>${m.release_year ?? "—"}</span>
+              <span>${runtime}</span>
+              <span>${lang}</span>
+              <span>${votes}</span>
+            </div>
+            <div class="genre-chips">
+              ${(m.genres || []).map(g => `<span class="chip">${g}</span>`).join("")}
+            </div>
+            <p class="modal-overview">${m.overview || "No overview available."}</p>
+          </div>
+        </div>
+        <div class="similar">
+          <h3>More like this</h3>
+          <div class="similar-row">${similarRow}</div>
+        </div>`;
+    }
+
+    async function openDetail(id) {
+      const [movie, sim] = await Promise.all([
+        fetch(`/api/movies/${id}`).then(r => r.json()),
+        fetch(`/api/movies/${id}/similar?limit=8`).then(r => r.json()),
+      ]);
+      renderModal(movie, sim.results);
+      modal.classList.add("open");
+      modal.scrollTop = 0;
+    }
+
+    function closeModal() { modal.classList.remove("open"); }
+
+    // One delegated handler covers result cards and the modal's mini cards.
+    document.addEventListener("click", (e) => {
+      const tile = e.target.closest("[data-id]");
+      if (tile) { openDetail(tile.dataset.id); return; }
+      if (e.target.classList.contains("modal-close") || e.target === modal) closeModal();
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
     async function search() {
       $("meta").textContent = "Searching…";
@@ -212,6 +401,85 @@
 
     $("search").addEventListener("click", search);
     loadGenres().then(search);
+
+    // --- AI companion chat ---
+    const chatHistory = [];           // {role, content} text turns only
+    const chatLog = $("chatLog");
+
+    function scrollChat() { chatLog.scrollTop = chatLog.scrollHeight; }
+
+    // Minimal, safe markdown for bot replies: escape first, then bold + bullets.
+    function renderMarkdown(text) {
+      const esc = text
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return esc
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|\n)\s*[\*\-]\s+/g, "$1• ");
+    }
+
+    function addMsg(text, cls) {
+      const d = document.createElement("div");
+      d.className = "msg " + cls;
+      if (cls.startsWith("bot")) d.innerHTML = renderMarkdown(text);
+      else d.textContent = text;
+      chatLog.appendChild(d);
+      scrollChat();
+      return d;
+    }
+
+    function addMovies(movies) {
+      if (!movies || !movies.length) return;
+      const g = document.createElement("div");
+      g.className = "chat-movies";
+      g.innerHTML = movies.slice(0, 9).map(miniCard).join("");
+      chatLog.appendChild(g);
+      scrollChat();
+    }
+
+    $("chatFab").addEventListener("click", () => {
+      $("chatPanel").classList.add("open");
+      if (!chatHistory.length) {
+        addMsg("Hi! Tell me what you're in the mood for — a genre, a vibe, or a movie you love — and I'll find something from the collection.", "bot");
+      }
+      $("chatInput").focus();
+    });
+    $("chatClose").addEventListener("click", () => $("chatPanel").classList.remove("open"));
+
+    $("chatForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = $("chatInput").value.trim();
+      if (!text) return;
+      $("chatInput").value = "";
+      addMsg(text, "user");
+      chatHistory.push({ role: "user", content: text });
+
+      const typing = document.createElement("div");
+      typing.className = "typing";
+      typing.textContent = "Thinking…";
+      chatLog.appendChild(typing);
+      scrollChat();
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: chatHistory }),
+        });
+        typing.remove();
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          addMsg(err.detail || "Something went wrong.", "bot err");
+          return;
+        }
+        const data = await res.json();
+        addMsg(data.reply || "(no reply)", "bot");
+        addMovies(data.movies);
+        chatHistory.push({ role: "assistant", content: data.reply || "" });
+      } catch (err) {
+        typing.remove();
+        addMsg("Couldn't reach the companion. Is the server running?", "bot err");
+      }
+    });
   </script>
 </body>
 </html>

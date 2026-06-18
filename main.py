@@ -9,10 +9,12 @@ Interactive API docs are at http://127.0.0.1:8000/docs
 
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
+import companion
 import queries
 
 app = FastAPI(title="Movie Recommendation App")
@@ -48,6 +50,44 @@ def get_movies(
         sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
     )
     return {"count": len(results), "results": results}
+
+
+@app.get("/api/movies/{movie_id}")
+def get_movie(movie_id: int):
+    """Full details for a single movie."""
+    movie = queries.get_movie(movie_id)
+    if movie is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    return movie
+
+
+@app.get("/api/movies/{movie_id}/similar")
+def get_similar(movie_id: int, limit: int = Query(default=12, ge=1, le=50)):
+    """Movies most similar to this one, ranked by shared genres."""
+    if queries.get_movie(movie_id) is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    return {"results": queries.similar_movies(movie_id, limit=limit)}
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
+
+@app.post("/api/chat")
+def chat(req: ChatRequest):
+    """AI companion: natural-language movie recommendations grounded in the DB."""
+    history = [{"role": m.role, "content": m.content} for m in req.messages]
+    try:
+        return companion.chat(history)
+    except RuntimeError as e:  # missing API key
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:  # upstream / network failure
+        raise HTTPException(status_code=502, detail=f"Companion error: {type(e).__name__}")
 
 
 @app.get("/")
