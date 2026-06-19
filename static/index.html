@@ -53,12 +53,17 @@
     }
     select:focus, input:focus { outline: 2px solid var(--imdb-gold); outline-offset: -1px; }
     select[multiple] { min-width: 170px; height: 120px; }
+    select:not([multiple]) { min-width: 145px; }
+    #sortBy, #sortDir { min-width: 155px; }
     button {
       background: var(--imdb-gold); color: #000; border: none; border-radius: 4px;
       padding: .62rem 1.4rem; font-size: .92rem; font-weight: 700; cursor: pointer;
       transition: background .15s ease;
     }
     button:hover { background: var(--imdb-gold-hover); }
+    button:disabled {
+      background: #3a3a3a; color: var(--text-faint); cursor: not-allowed;
+    }
 
     /* ---- Results ---- */
     /* ---- Collection chips (fine-grained sub-genres) ---- */
@@ -85,7 +90,15 @@
     .meta span { color: var(--text-faint); font-weight: 400; font-size: .9rem; }
     .grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 1.5rem 1.1rem; padding: 1rem 1.5rem 3rem;
+      gap: 1.5rem 1.1rem; padding: 1rem 1.5rem 1.25rem;
+    }
+    .pager {
+      display: flex; align-items: center; justify-content: center; gap: .9rem;
+      padding: .25rem 1.5rem 3rem;
+    }
+    .pager button { min-width: 105px; }
+    .pager .page-label {
+      color: var(--text-dim); font-size: .9rem; min-width: 72px; text-align: center;
     }
     .card {
       background: var(--bg-card); border-radius: 10px; overflow: hidden;
@@ -261,12 +274,20 @@
         <option value="title">Title</option>
       </select>
     </div>
+    <div class="field">
+      <label for="sortDir">Order</label>
+      <select id="sortDir">
+        <option value="desc">High to low</option>
+        <option value="asc">Low to high</option>
+      </select>
+    </div>
     <button id="search">Search</button>
   </div>
 
   <div class="collections" id="collections"></div>
   <div class="meta" id="meta"></div>
   <div class="grid" id="results"></div>
+  <div class="pager" id="pager"></div>
 
   <div class="modal-backdrop" id="modal">
     <div class="modal" id="modalContent"></div>
@@ -288,6 +309,8 @@
   <script>
     const $ = (id) => document.getElementById(id);
     let activeCollection = null;  // currently selected sub-genre slug, or null
+    let currentPage = 0;
+    const PAGE_SIZE = 50;
 
     // Deterministic dark gradient per title, so each fallback poster is distinct.
     function gradientFor(title) {
@@ -313,6 +336,9 @@
       add("rating_min", $("ratingMin").value);
       if (activeCollection) params.set("collection", activeCollection);
       params.set("sort_by", $("sortBy").value);
+      params.set("sort_dir", $("sortDir").value);
+      params.set("limit", PAGE_SIZE);
+      params.set("offset", currentPage * PAGE_SIZE);
       return params.toString();
     }
 
@@ -333,6 +359,7 @@
         activeCollection = chip.dataset.slug || null;
         bar.querySelectorAll(".coll-chip").forEach(c => c.classList.remove("active"));
         chip.classList.add("active");
+        currentPage = 0;
         search();
       });
     }
@@ -432,16 +459,60 @@
     });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
+    function renderPager(hasMore) {
+      $("pager").innerHTML = `
+        <button id="prevPage" ${currentPage === 0 ? "disabled" : ""}>Previous</button>
+        <span class="page-label">Page ${currentPage + 1}</span>
+        <button id="nextPage" ${hasMore ? "" : "disabled"}>Next</button>
+      `;
+      $("prevPage").addEventListener("click", () => {
+        if (currentPage === 0) return;
+        currentPage -= 1;
+        search();
+      });
+      $("nextPage").addEventListener("click", () => {
+        if (!hasMore) return;
+        currentPage += 1;
+        search();
+      });
+    }
+
+    function syncSortOrderLabels() {
+      const labels = {
+        title: ["Z to A", "A to Z"],
+        year: ["Newest first", "Oldest first"],
+        rating: ["Highest first", "Lowest first"],
+        popularity: ["Most popular", "Least popular"],
+      }[$("sortBy").value] || ["High to low", "Low to high"];
+      $("sortDir").options[0].textContent = labels[0];
+      $("sortDir").options[1].textContent = labels[1];
+    }
+
+    function resetAndSearch() {
+      currentPage = 0;
+      syncSortOrderLabels();
+      search();
+    }
+
     async function search() {
       $("meta").textContent = "Searching…";
       const data = await fetch("/api/movies?" + buildQuery()).then(r => r.json());
-      $("meta").innerHTML = `Results <span>(${data.count})</span>`;
+      const start = currentPage * PAGE_SIZE + 1;
+      const end = currentPage * PAGE_SIZE + data.count;
+      $("meta").innerHTML = data.count
+        ? `Results <span>(${start}-${end})</span>`
+        : `Results <span>(0)</span>`;
       $("results").innerHTML = data.results.length
         ? data.results.map(card).join("")
         : `<div class="empty">No movies match those filters.</div>`;
+      renderPager(data.has_more);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    $("search").addEventListener("click", search);
+    $("search").addEventListener("click", resetAndSearch);
+    $("sortBy").addEventListener("change", resetAndSearch);
+    $("sortDir").addEventListener("change", resetAndSearch);
+    syncSortOrderLabels();
     loadCollections();
     loadGenres().then(search);
 

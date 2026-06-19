@@ -58,13 +58,15 @@ def get_movies(
 ):
     """Filtered movie search. Every parameter is optional."""
     keyword_ids = queries.keyword_ids_for_collection(collection) if collection else None
+    fetch_limit = limit + 1
     results = queries.search_movies(
         genres=genres, genre_match=genre_match,
         year_min=year_min, year_max=year_max, rating_min=rating_min,
         language=language, runtime_max=runtime_max, keyword_ids=keyword_ids,
-        sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
+        sort_by=sort_by, sort_dir=sort_dir, limit=fetch_limit, offset=offset,
     )
-    return {"count": len(results), "results": results}
+    has_more = len(results) > limit
+    return {"count": min(len(results), limit), "has_more": has_more, "results": results[:limit]}
 
 
 @app.get("/api/movies/{movie_id}")
