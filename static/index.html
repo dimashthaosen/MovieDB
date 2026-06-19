@@ -52,9 +52,10 @@
       border-radius: 4px; padding: .55rem .65rem; font-size: .9rem; font-family: inherit;
     }
     select:focus, input:focus { outline: 2px solid var(--imdb-gold); outline-offset: -1px; }
-    select[multiple] { min-width: 170px; height: 120px; }
     select:not([multiple]) { min-width: 145px; }
     #sortBy, #sortDir { min-width: 155px; }
+    #genres { min-width: 175px; }
+    #movieSearch { width: min(280px, 42vw); }
     button {
       background: var(--imdb-gold); color: #000; border: none; border-radius: 4px;
       padding: .62rem 1.4rem; font-size: .92rem; font-weight: 700; cursor: pointer;
@@ -145,7 +146,7 @@
     .modal-backdrop.open { display: flex; }
     .modal {
       position: relative; background: #181818; border: 1px solid var(--border);
-      border-radius: 14px; max-width: 880px; width: 100%;
+      border-radius: 14px; max-width: 980px; width: min(980px, calc(100vw - 2rem));
     }
     .modal-close {
       position: absolute; top: .75rem; right: .9rem; z-index: 2;
@@ -153,10 +154,19 @@
       width: 34px; height: 34px; font-size: 1.2rem; line-height: 1; cursor: pointer;
     }
     .modal-close:hover { background: rgba(0,0,0,.8); }
-    .modal-hero { display: flex; gap: 1.5rem; padding: 1.5rem; }
-    .modal-poster { width: 200px; flex-shrink: 0; border-radius: 10px; overflow: hidden; }
-    .modal-poster img, .modal-poster .poster-fallback { border-radius: 10px; }
-    .modal-info { flex: 1; min-width: 0; }
+    .modal-hero {
+      display: grid; grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+      gap: 1.75rem; align-items: start; padding: 1.5rem;
+    }
+    .modal-poster {
+      width: 100%; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden;
+      background: #101010;
+    }
+    .modal-poster img, .modal-poster .poster-fallback {
+      width: 100%; height: 100%; aspect-ratio: 2 / 3; object-fit: contain;
+      border-radius: 10px; display: block;
+    }
+    .modal-info { min-width: 0; padding-right: 1.6rem; }
     .modal-info h2 { margin: 0 .5rem 0 0; font-size: 1.55rem; line-height: 1.2; }
     .modal-meta {
       display: flex; flex-wrap: wrap; gap: .35rem 1rem; align-items: center;
@@ -168,7 +178,54 @@
       background: #2b2b2b; border: 1px solid #3a3a3a; border-radius: 999px;
       padding: .25rem .7rem; font-size: .78rem; color: var(--text-dim);
     }
-    .modal-overview { color: var(--text-dim); line-height: 1.6; font-size: .95rem; }
+    .modal-overview { color: var(--text-dim); line-height: 1.55; font-size: .95rem; max-width: 66ch; }
+    .modal-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+    .link-button {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--imdb-gold); color: #000; border-radius: 4px;
+      padding: .55rem .85rem; font-size: .86rem; font-weight: 700;
+      text-decoration: none;
+    }
+    .link-button.secondary { background: #2b2b2b; color: #fff; border: 1px solid #3a3a3a; }
+    .detail-section { padding: 0 1.5rem 1.5rem; }
+    .detail-section h3 { font-size: 1rem; margin: .5rem 0 1rem; }
+    .facts {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .7rem; margin-top: .5rem;
+    }
+    .fact {
+      background: #202020; border: 1px solid var(--border); border-radius: 8px;
+      padding: .7rem .8rem;
+    }
+    .fact .k {
+      color: var(--text-faint); display: block; font-size: .72rem;
+      text-transform: uppercase; letter-spacing: .05em; margin-bottom: .25rem;
+    }
+    .fact .v { color: var(--text); font-size: .9rem; line-height: 1.35; }
+    .cast-row {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+      gap: .8rem;
+    }
+    .person {
+      background: #202020; border: 1px solid var(--border); border-radius: 8px;
+      overflow: hidden; min-width: 0;
+    }
+    .person img, .profile-fallback {
+      width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; background: #2b2b2b;
+    }
+    .profile-fallback {
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-faint); font-size: 1.4rem;
+    }
+    .person .pbody { padding: .55rem .6rem .65rem; }
+    .person .name { font-weight: 700; font-size: .82rem; line-height: 1.25; }
+    .person .role { color: var(--text-faint); font-size: .74rem; line-height: 1.3; margin-top: .2rem; }
+    .crew-list { color: var(--text-dim); line-height: 1.7; font-size: .9rem; }
+    .crew-list b { color: #fff; }
+    .modal-loading {
+      color: var(--text-faint); font-size: .9rem; background: #202020;
+      border: 1px solid var(--border); border-radius: 8px; padding: .8rem;
+    }
     .similar { padding: 0 1.5rem 1.5rem; }
     .similar h3 { font-size: 1rem; margin: .5rem 0 1rem; }
     .similar-row {
@@ -186,9 +243,11 @@
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
     .mini .shared { font-size: .72rem; color: var(--imdb-gold); margin-top: .15rem; }
-    @media (max-width: 560px) {
-      .modal-hero { flex-direction: column; }
-      .modal-poster { width: 140px; }
+    @media (max-width: 700px) {
+      .modal-backdrop { padding: 1rem; }
+      .modal-hero { grid-template-columns: 1fr; gap: 1rem; }
+      .modal-poster { width: min(220px, 70vw); }
+      .modal-info { padding-right: 0; }
     }
 
     /* ---- AI companion chat ---- */
@@ -243,15 +302,12 @@
 
   <div class="filters">
     <div class="field">
-      <label for="genres">Genres</label>
-      <select id="genres" multiple></select>
+      <label for="movieSearch">Search movies</label>
+      <input id="movieSearch" type="search" placeholder="Title, e.g. Inception" autocomplete="off" />
     </div>
     <div class="field">
-      <label for="genreMatch">Match</label>
-      <select id="genreMatch">
-        <option value="any">Any selected</option>
-        <option value="all">All selected</option>
-      </select>
+      <label for="genres">Genres</label>
+      <select id="genres"></select>
     </div>
     <div class="field">
       <label for="yearMin">Year from</label>
@@ -321,15 +377,22 @@
 
     async function loadGenres() {
       const genres = await fetch("/api/genres").then(r => r.json());
-      $("genres").innerHTML = genres
-        .map(g => `<option value="${g.id}">${g.name}</option>`)
+      $("genres").innerHTML = ['<option value="">All genres</option>']
+        .concat(genres.map(g => `<option value="${g.id}">${g.name}</option>`))
         .join("");
     }
 
     function buildQuery() {
       const params = new URLSearchParams();
-      [...$("genres").selectedOptions].forEach(o => params.append("genres", o.value));
-      params.set("genre_match", $("genreMatch").value);
+      const textQuery = $("movieSearch").value.trim();
+      if (textQuery) {
+        params.set("query", textQuery);
+        params.set("limit", PAGE_SIZE);
+        params.set("offset", currentPage * PAGE_SIZE);
+        return params.toString();
+      }
+      if ($("genres").value) params.append("genres", $("genres").value);
+      params.set("genre_match", "any");
       const add = (key, val) => { if (val !== "" && val != null) params.set(key, val); };
       add("year_min", $("yearMin").value);
       add("year_max", $("yearMax").value);
@@ -394,6 +457,21 @@
 
     // --- Detail modal + "more like this" ---
     const modal = $("modal");
+    const movieCache = new Map();
+    const extrasCache = new Map();
+    const similarCache = new Map();
+    const prefetchTimers = new Map();
+    let activeMovieId = null;
+
+    async function fetchCached(cache, key, url) {
+      if (!cache.has(key)) {
+        cache.set(key, fetch(url).then(r => {
+          if (!r.ok) throw new Error(`Request failed: ${r.status}`);
+          return r.json();
+        }));
+      }
+      return cache.get(key);
+    }
 
     function miniCard(m) {
       const shared = m.shared_genres
@@ -407,11 +485,72 @@
         </div>`;
     }
 
-    function renderModal(m, similar) {
+    function money(n) {
+      return n ? `$${n.toLocaleString()}` : "";
+    }
+
+    function joinList(items, max = 4) {
+      return (items || []).filter(Boolean).slice(0, max).join(", ");
+    }
+
+    function fact(label, value) {
+      return value ? `<div class="fact"><span class="k">${label}</span><span class="v">${value}</span></div>` : "";
+    }
+
+    function personCard(p) {
+      const image = p.profile_url
+        ? `<img src="${p.profile_url}" alt="${p.name}" loading="lazy" />`
+        : `<div class="profile-fallback">?</div>`;
+      return `
+        <div class="person">
+          ${image}
+          <div class="pbody">
+            <div class="name">${p.name}</div>
+            <div class="role">${p.character || "Cast"}</div>
+          </div>
+        </div>`;
+    }
+
+    function crewSection(crew) {
+      if (!crew || !Object.keys(crew).length) return "";
+      const rows = [
+        crew.directors?.length ? `<div><b>Director:</b> ${crew.directors.join(", ")}</div>` : "",
+        crew.writers?.length ? `<div><b>Writing:</b> ${crew.writers.join(", ")}</div>` : "",
+        crew.composers?.length ? `<div><b>Music:</b> ${crew.composers.join(", ")}</div>` : "",
+      ].filter(Boolean).join("");
+      return rows ? `<div class="detail-section"><h3>Crew</h3><div class="crew-list">${rows}</div></div>` : "";
+    }
+
+    function renderModal(m, similar = null, opts = {}) {
+      const extrasLoading = opts.extrasLoading ?? false;
+      const similarLoading = opts.similarLoading ?? false;
       const lang = m.original_language ? m.original_language.toUpperCase() : "—";
       const runtime = m.runtime ? `${m.runtime} min` : "Runtime n/a";
       const votes = m.vote_count ? `${m.vote_count.toLocaleString()} votes` : "";
-      const similarRow = similar.length
+      const facts = [
+        fact("Released", m.release_date || m.release_year),
+        fact("Status", m.status),
+        fact("Language", lang),
+        fact("Budget", money(m.budget)),
+        fact("Revenue", money(m.revenue)),
+        fact("Countries", joinList(m.production_countries, 3)),
+        fact("Studios", joinList(m.production_companies, 4)),
+      ].join("");
+      const actionLinks = [
+        m.trailer_url ? `<a class="link-button" href="${m.trailer_url}" target="_blank" rel="noreferrer">Watch trailer</a>` : "",
+        m.homepage ? `<a class="link-button secondary" href="${m.homepage}" target="_blank" rel="noreferrer">Official site</a>` : "",
+      ].filter(Boolean).join("");
+      const castSection = m.cast?.length
+        ? `<div class="detail-section"><h3>Cast</h3><div class="cast-row">${m.cast.map(personCard).join("")}</div></div>`
+        : extrasLoading
+          ? `<div class="detail-section"><h3>Cast</h3><div class="modal-loading">Loading cast...</div></div>`
+        : "";
+      const detailsSection = facts
+        ? `<div class="detail-section"><h3>Details</h3><div class="facts">${facts}</div></div>`
+        : "";
+      const similarRow = similarLoading
+        ? `<div class="modal-loading">Loading recommendations...</div>`
+        : similar?.length
         ? similar.map(miniCard).join("")
         : `<p style="color:var(--text-faint)">No similar titles found.</p>`;
       $("modalContent").innerHTML = `
@@ -430,9 +569,14 @@
             <div class="genre-chips">
               ${(m.genres || []).map(g => `<span class="chip">${g}</span>`).join("")}
             </div>
+            ${m.tagline ? `<p class="modal-overview"><em>${m.tagline}</em></p>` : ""}
             <p class="modal-overview">${m.overview || "No overview available."}</p>
+            ${actionLinks ? `<div class="modal-actions">${actionLinks}</div>` : ""}
           </div>
         </div>
+        ${castSection}
+        ${extrasLoading && !m.crew ? `<div class="detail-section"><h3>Crew</h3><div class="modal-loading">Loading crew...</div></div>` : crewSection(m.crew)}
+        ${detailsSection}
         <div class="similar">
           <h3>More like this</h3>
           <div class="similar-row">${similarRow}</div>
@@ -440,22 +584,81 @@
     }
 
     async function openDetail(id) {
-      const [movie, sim] = await Promise.all([
-        fetch(`/api/movies/${id}`).then(r => r.json()),
-        fetch(`/api/movies/${id}/similar?limit=8`).then(r => r.json()),
-      ]);
-      renderModal(movie, sim.results);
+      activeMovieId = String(id);
+      const key = String(id);
+      let movie = await fetchCached(movieCache, key, `/api/movies/${id}`);
+      if (activeMovieId !== String(id)) return;
+      let similar = null;
+      let extrasLoading = true;
+      let similarLoading = true;
+      const rerender = () => {
+        if (activeMovieId === key) renderModal(movie, similar, { extrasLoading, similarLoading });
+      };
+      rerender();
       modal.classList.add("open");
       modal.scrollTop = 0;
+
+      fetchCached(extrasCache, key, `/api/movies/${id}/extras`)
+        .then(extras => {
+          if (activeMovieId !== key) return;
+          movie = { ...movie, ...extras };
+          movieCache.set(key, Promise.resolve(movie));
+          extrasLoading = false;
+          rerender();
+        })
+        .catch(() => {
+          extrasLoading = false;
+          rerender();
+        });
+
+      fetchCached(similarCache, key, `/api/movies/${id}/similar?limit=8`)
+        .then(sim => {
+          if (activeMovieId !== key) return;
+          similar = sim.results || [];
+          similarLoading = false;
+          rerender();
+        })
+        .catch(() => {
+          similar = [];
+          similarLoading = false;
+          rerender();
+        });
     }
 
-    function closeModal() { modal.classList.remove("open"); }
+    function prefetchDetail(id) {
+      const key = String(id);
+      fetchCached(movieCache, key, `/api/movies/${key}`).catch(() => movieCache.delete(key));
+      fetchCached(extrasCache, key, `/api/movies/${key}/extras`).catch(() => extrasCache.delete(key));
+    }
+
+    function closeModal() {
+      activeMovieId = null;
+      modal.classList.remove("open");
+    }
 
     // One delegated handler covers result cards and the modal's mini cards.
     document.addEventListener("click", (e) => {
       const tile = e.target.closest("[data-id]");
       if (tile) { openDetail(tile.dataset.id); return; }
       if (e.target.classList.contains("modal-close") || e.target === modal) closeModal();
+    });
+    $("results").addEventListener("pointerover", (e) => {
+      const tile = e.target.closest(".card[data-id]");
+      if (!tile || prefetchTimers.has(tile.dataset.id)) return;
+      const id = tile.dataset.id;
+      prefetchTimers.set(id, setTimeout(() => {
+        prefetchTimers.delete(id);
+        prefetchDetail(id);
+      }, 300));
+    });
+    $("results").addEventListener("pointerout", (e) => {
+      const tile = e.target.closest(".card[data-id]");
+      if (!tile || tile.contains(e.relatedTarget)) return;
+      const timer = prefetchTimers.get(tile.dataset.id);
+      if (timer) {
+        clearTimeout(timer);
+        prefetchTimers.delete(tile.dataset.id);
+      }
     });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
@@ -491,6 +694,12 @@
     function resetAndSearch() {
       currentPage = 0;
       syncSortOrderLabels();
+      if ($("movieSearch").value.trim()) {
+        activeCollection = null;
+        $("collections")?.querySelectorAll(".coll-chip").forEach(chip => {
+          chip.classList.toggle("active", !chip.dataset.slug);
+        });
+      }
       search();
     }
 
@@ -499,17 +708,23 @@
       const data = await fetch("/api/movies?" + buildQuery()).then(r => r.json());
       const start = currentPage * PAGE_SIZE + 1;
       const end = currentPage * PAGE_SIZE + data.count;
+      const textQuery = $("movieSearch").value.trim();
+      const heading = textQuery ? `Search results for "${textQuery}"` : "Results";
       $("meta").innerHTML = data.count
-        ? `Results <span>(${start}-${end})</span>`
-        : `Results <span>(0)</span>`;
+        ? `${heading} <span>(${start}-${end})</span>`
+        : `${heading} <span>(0)</span>`;
       $("results").innerHTML = data.results.length
         ? data.results.map(card).join("")
-        : `<div class="empty">No movies match those filters.</div>`;
+        : `<div class="empty">${textQuery ? "No movies found for that search." : "No movies match those filters."}</div>`;
       renderPager(data.has_more);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     $("search").addEventListener("click", resetAndSearch);
+    $("movieSearch").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") resetAndSearch();
+    });
+    $("genres").addEventListener("change", resetAndSearch);
     $("sortBy").addEventListener("change", resetAndSearch);
     $("sortDir").addEventListener("change", resetAndSearch);
     syncSortOrderLabels();

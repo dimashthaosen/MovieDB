@@ -23,6 +23,7 @@ load_dotenv()
 
 API_KEY = os.getenv("TMDB_API_KEY")
 IMAGE_BASE = "https://image.tmdb.org/t/p/w342"
+PROFILE_IMAGE_BASE = "https://image.tmdb.org/t/p/w185"
 
 # Tried in order; first reachable host wins and is remembered for the rest.
 API_HOSTS = [
@@ -112,6 +113,10 @@ def get(path: str, **params) -> dict:
 
 def poster_url(poster_path: str | None) -> str | None:
     return f"{IMAGE_BASE}{poster_path}" if poster_path else None
+
+
+def profile_url(profile_path: str | None) -> str | None:
+    return f"{PROFILE_IMAGE_BASE}{profile_path}" if profile_path else None
 
 
 def year_of(release_date: str | None) -> int | None:

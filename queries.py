@@ -58,6 +58,74 @@ def _to_movie(item: dict) -> dict:
     }
 
 
+def _money(value: int | None) -> int | None:
+    return value if value and value > 0 else None
+
+
+def _trailer_url(videos: dict | None) -> str | None:
+    results = (videos or {}).get("results", [])
+    youtube = [v for v in results if v.get("site") == "YouTube" and v.get("key")]
+    preferred = next(
+        (
+            v for v in youtube
+            if v.get("official") and v.get("type") in {"Trailer", "Teaser"}
+        ),
+        None,
+    )
+    fallback = next((v for v in youtube if v.get("type") in {"Trailer", "Teaser"}), None)
+    video = preferred or fallback or (youtube[0] if youtube else None)
+    return f"https://www.youtube.com/watch?v={video['key']}" if video else None
+
+
+def _cast(credits: dict | None, limit: int = 8) -> list[dict]:
+    cast = []
+    for person in (credits or {}).get("cast", [])[:limit]:
+        cast.append({
+            "name": person.get("name"),
+            "character": person.get("character"),
+            "profile_url": tmdb.profile_url(person.get("profile_path")),
+        })
+    return cast
+
+
+def _crew(credits: dict | None) -> dict:
+    out = {"directors": [], "writers": [], "composers": []}
+    for person in (credits or {}).get("crew", []):
+        job = person.get("job")
+        name = person.get("name")
+        if not name:
+            continue
+        if job == "Director" and name not in out["directors"]:
+            out["directors"].append(name)
+        elif job in {"Writer", "Screenplay", "Story"} and name not in out["writers"]:
+            out["writers"].append(name)
+        elif job == "Original Music Composer" and name not in out["composers"]:
+            out["composers"].append(name)
+    return {key: names[:4] for key, names in out.items() if names}
+
+
+def _enrich_movie_detail(data: dict) -> dict:
+    movie = _to_movie(data)
+    movie.update({
+        "tagline": data.get("tagline"),
+        "status": data.get("status"),
+        "release_date": data.get("release_date"),
+        "budget": _money(data.get("budget")),
+        "revenue": _money(data.get("revenue")),
+        "production_countries": [
+            c.get("name") for c in data.get("production_countries", []) if c.get("name")
+        ],
+        "production_companies": [
+            c.get("name") for c in data.get("production_companies", []) if c.get("name")
+        ][:4],
+        "cast": _cast(data.get("credits")),
+        "crew": _crew(data.get("credits")),
+        "trailer_url": _trailer_url(data.get("videos")),
+        "homepage": data.get("homepage"),
+    })
+    return movie
+
+
 def _discover_slice(params: dict, limit: int, offset: int) -> list[dict]:
     """Fetch the TMDb /discover pages covering [offset, offset+limit) and slice.
 
@@ -118,6 +186,28 @@ def search_movies(
     return [_to_movie(it) for it in _discover_slice(params, limit, offset)]
 
 
+def _search_slice(query: str, limit: int, offset: int) -> list[dict]:
+    """Fetch TMDb title-search pages covering [offset, offset+limit)."""
+    first_page = offset // 20 + 1
+    last_page = min((offset + limit - 1) // 20 + 1, 500)
+    collected: list[dict] = []
+    for page in range(first_page, last_page + 1):
+        data = tmdb.get("/search/movie", query=query, include_adult="false", page=page)
+        collected.extend(data.get("results", []))
+        if page >= data.get("total_pages", page):
+            break
+    base = (first_page - 1) * 20
+    return collected[offset - base: offset - base + limit]
+
+
+def search_movie_titles(query: str, limit: int = 50, offset: int = 0) -> list[dict]:
+    """Search movies by title using TMDb's title search endpoint."""
+    q = query.strip()
+    if not q:
+        return []
+    return [_to_movie(it) for it in _search_slice(q, limit, offset)]
+
+
 def get_movie(movie_id: int) -> dict | None:
     """Full details for a single movie, or None if it doesn't exist."""
     try:
@@ -125,6 +215,28 @@ def get_movie(movie_id: int) -> dict | None:
     except tmdb.TMDbNotFound:
         return None
     return _to_movie(data)
+
+
+def get_movie_extras(movie_id: int) -> dict | None:
+    """Cast, crew, trailer, and production facts for a movie."""
+    try:
+        data = tmdb.get(f"/movie/{movie_id}", append_to_response="credits,videos")
+    except tmdb.TMDbNotFound:
+        return None
+    enriched = _enrich_movie_detail(data)
+    return {
+        "tagline": enriched.get("tagline"),
+        "status": enriched.get("status"),
+        "release_date": enriched.get("release_date"),
+        "budget": enriched.get("budget"),
+        "revenue": enriched.get("revenue"),
+        "production_countries": enriched.get("production_countries", []),
+        "production_companies": enriched.get("production_companies", []),
+        "cast": enriched.get("cast", []),
+        "crew": enriched.get("crew", {}),
+        "trailer_url": enriched.get("trailer_url"),
+        "homepage": enriched.get("homepage"),
+    }
 
 
 def similar_movies(movie_id: int, limit: int = 12) -> list[dict]:

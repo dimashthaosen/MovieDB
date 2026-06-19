@@ -43,6 +43,7 @@ def get_collections():
 
 @app.get("/api/movies")
 def get_movies(
+    query: str | None = Query(default=None, description="independent title search"),
     genres: list[int] | None = Query(default=None, description="genre ids to match"),
     genre_match: str = Query(default="any", pattern="^(any|all)$"),
     year_min: int | None = None,
@@ -57,14 +58,17 @@ def get_movies(
     offset: int = Query(default=0, ge=0),
 ):
     """Filtered movie search. Every parameter is optional."""
-    keyword_ids = queries.keyword_ids_for_collection(collection) if collection else None
     fetch_limit = limit + 1
-    results = queries.search_movies(
-        genres=genres, genre_match=genre_match,
-        year_min=year_min, year_max=year_max, rating_min=rating_min,
-        language=language, runtime_max=runtime_max, keyword_ids=keyword_ids,
-        sort_by=sort_by, sort_dir=sort_dir, limit=fetch_limit, offset=offset,
-    )
+    if query and query.strip():
+        results = queries.search_movie_titles(query, limit=fetch_limit, offset=offset)
+    else:
+        keyword_ids = queries.keyword_ids_for_collection(collection) if collection else None
+        results = queries.search_movies(
+            genres=genres, genre_match=genre_match,
+            year_min=year_min, year_max=year_max, rating_min=rating_min,
+            language=language, runtime_max=runtime_max, keyword_ids=keyword_ids,
+            sort_by=sort_by, sort_dir=sort_dir, limit=fetch_limit, offset=offset,
+        )
     has_more = len(results) > limit
     return {"count": min(len(results), limit), "has_more": has_more, "results": results[:limit]}
 
@@ -76,6 +80,15 @@ def get_movie(movie_id: int):
     if movie is None:
         raise HTTPException(status_code=404, detail="Movie not found")
     return movie
+
+
+@app.get("/api/movies/{movie_id}/extras")
+def get_movie_extras(movie_id: int):
+    """Cast, crew, trailer, and production facts for a single movie."""
+    extras = queries.get_movie_extras(movie_id)
+    if extras is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    return extras
 
 
 @app.get("/api/movies/{movie_id}/similar")
