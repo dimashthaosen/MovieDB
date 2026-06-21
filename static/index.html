@@ -225,6 +225,25 @@
     .chat-suggestions { display:flex; flex-wrap:wrap; gap:7px; padding:0 12px 12px; background:#101010; }
     .chat-suggestions button { border:1px solid #333; background:#202020; color:var(--dim); border-radius:999px; padding:7px 10px; font-family:inherit; font-size:12px; font-weight:800; cursor:pointer; }
 
+    /* ---- Account / auth ---- */
+    .account { display:flex; align-items:center; gap:8px; }
+    .account-btn { height:42px; background:#232323; border:1px solid #333; border-radius:9px; color:var(--text); font-family:inherit; font-size:13px; font-weight:800; padding:0 14px; cursor:pointer; white-space:nowrap; }
+    .account-btn:hover { border-color:#4a4a4a; }
+    .account-email { color:var(--dim); font-size:13px; font-weight:650; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .auth-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.84); z-index:60; display:none; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); }
+    .auth-backdrop.open { display:flex; }
+    .auth-card { position:relative; width:100%; max-width:380px; background:#161616; border:1px solid var(--border); border-radius:16px; padding:24px; }
+    .auth-close { position:absolute; top:12px; right:14px; width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12); color:#fff; font-size:18px; line-height:1; cursor:pointer; }
+    .auth-card h2 { margin:2px 0 16px; font-size:22px; font-weight:800; letter-spacing:-.02em; }
+    .auth-card form { display:flex; flex-direction:column; gap:10px; }
+    .auth-card input { height:44px; background:#232323; border:1px solid #333; border-radius:9px; color:#fff; font-family:inherit; font-size:14px; padding:0 14px; outline:none; }
+    .auth-card input:focus { border-color:var(--gold); }
+    .auth-error { color:#ff8b8b; font-size:12.5px; font-weight:650; min-height:15px; }
+    .auth-card form button { height:44px; background:var(--gold); color:#000; border:none; border-radius:9px; font-family:inherit; font-size:14px; font-weight:800; cursor:pointer; }
+    .auth-card form button:disabled { opacity:.6; cursor:default; }
+    .auth-toggle { margin-top:14px; font-size:13px; color:var(--faint); display:flex; gap:6px; justify-content:center; }
+    .auth-toggle button { background:none; border:none; color:var(--gold); font-family:inherit; font-size:13px; font-weight:800; cursor:pointer; }
+
     /* ---- Touch / mobile niceties ---- */
     * { -webkit-tap-highlight-color: transparent; }
     body.locked { overflow: hidden; }
@@ -280,7 +299,7 @@
       /* bigger tap targets */
       .ctl, .genre-trigger, .reset-btn, .taste-btn, .chat-form input, .chat-form button { height:44px; }
       /* 16px inputs stop iOS auto-zoom on focus (e.g. when the chat keyboard opens) */
-      .search-wrap input, .ctl, select.ctl, .chat-form input, .anchor-picker input, .taste-field input, .taste-field select { font-size:16px; }
+      .search-wrap input, .ctl, select.ctl, .chat-form input, .anchor-picker input, .taste-field input, .taste-field select, .auth-card input { font-size:16px; }
     }
 
     /* ---- Small phone ---- */
@@ -292,7 +311,7 @@
 
     /* Any touch device (incl. tablets >600px): >=16px inputs prevent iOS focus auto-zoom. */
     @media (pointer: coarse) {
-      .search-wrap input, .ctl, select.ctl, .chat-form input, .anchor-picker input, .taste-field input, .taste-field select { font-size:16px; }
+      .search-wrap input, .ctl, select.ctl, .chat-form input, .anchor-picker input, .taste-field input, .taste-field select, .auth-card input { font-size:16px; }
     }
   </style>
 </head>
@@ -305,6 +324,7 @@
       <span class="mag">&#8981;</span>
       <input id="search" type="text" placeholder="Search titles" autocomplete="off" />
     </div>
+    <div class="account" id="account"></div>
   </header>
 
   <div class="controls">
@@ -433,6 +453,8 @@
       <div class="taste-actions">
         <button class="primary" id="runTaste" type="button">Find my matches</button>
         <button class="ghost" id="clearTaste" type="button">Back to browse</button>
+        <button class="ghost" id="saveTaste" type="button" hidden>Save profile</button>
+        <button class="ghost" id="loadTaste" type="button" hidden>Load saved</button>
         <span class="taste-status" id="tasteStatus">Tip: choose 2-3 signals for better matches.</span>
       </div>
     </div>
@@ -443,6 +465,23 @@
   <div id="results"></div>
 
   <div class="modal-backdrop" id="modal"><div class="modal" id="modalContent"></div></div>
+
+  <div class="auth-backdrop" id="authBackdrop">
+    <div class="auth-card">
+      <button class="auth-close" id="authClose" aria-label="Close">&times;</button>
+      <h2 id="authTitle">Sign in</h2>
+      <form id="authForm">
+        <input id="authEmail" type="email" placeholder="Email" autocomplete="email" />
+        <input id="authPassword" type="password" placeholder="Password (min 6 chars)" autocomplete="current-password" />
+        <div class="auth-error" id="authError"></div>
+        <button type="submit" id="authSubmit">Sign in</button>
+      </form>
+      <div class="auth-toggle">
+        <span id="authToggleText">New here?</span>
+        <button type="button" id="authToggle">Create an account</button>
+      </div>
+    </div>
+  </div>
 
   <button class="fab" id="fab" title="Ask the AI movie companion" aria-label="Ask AI">&#129302;</button>
   <div class="chat-panel" id="chatPanel">
@@ -478,6 +517,7 @@
       taste: { liked_movies: [], anchorQuery: "", anchorSuggestions: [], anchorLoading: false, vibes: [], rating_flexibility: 0.35, language_scope: "", era: "", runtime: "", movie_type: "", zeitgeist: "" },
       modalId: null,
       chatOpen: false, chatMessages: [], typing: false,
+      user: null, accountsEnabled: false,
     };
     const movieCache = new Map();
     const extrasCache = new Map();
@@ -1156,6 +1196,117 @@
       sendChat(e.target.textContent);
     });
 
+    /* ---------------- accounts ---------------- */
+    const TOKEN_KEY = "moviedb_token";
+    const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
+    const setToken = (t) => t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY);
+    function authedFetch(path, opts = {}) {
+      const headers = Object.assign({}, opts.headers, { Authorization: "Bearer " + getToken() });
+      return fetch(path, Object.assign({}, opts, { headers }));
+    }
+
+    function renderAccount() {
+      const el = $("account");
+      if (!state.accountsEnabled) { el.innerHTML = ""; }
+      else if (state.user) {
+        el.innerHTML = `<span class="account-email" title="${esc(state.user.email)}">${esc(state.user.email)}</span><button class="account-btn" id="signOutBtn">Sign out</button>`;
+        $("signOutBtn").addEventListener("click", signOut);
+      } else {
+        el.innerHTML = `<button class="account-btn" id="signInBtn">Sign in</button>`;
+        $("signInBtn").addEventListener("click", () => openAuth("login"));
+      }
+      const loggedIn = !!state.user;
+      $("saveTaste").hidden = !loggedIn;
+      $("loadTaste").hidden = !loggedIn;
+    }
+
+    function signOut() { setToken(""); state.user = null; renderAccount(); }
+
+    let authMode = "login";
+    function renderAuthMode() {
+      const signup = authMode === "signup";
+      $("authTitle").textContent = signup ? "Create account" : "Sign in";
+      $("authSubmit").textContent = signup ? "Create account" : "Sign in";
+      $("authToggleText").textContent = signup ? "Already have an account?" : "New here?";
+      $("authToggle").textContent = signup ? "Sign in" : "Create an account";
+      $("authPassword").setAttribute("autocomplete", signup ? "new-password" : "current-password");
+    }
+    function openAuth(mode) {
+      authMode = mode;
+      $("authError").textContent = ""; $("authEmail").value = ""; $("authPassword").value = "";
+      renderAuthMode();
+      $("authBackdrop").classList.add("open");
+      $("authEmail").focus();
+    }
+    function closeAuth() { $("authBackdrop").classList.remove("open"); }
+
+    $("authToggle").addEventListener("click", () => { authMode = authMode === "signup" ? "login" : "signup"; $("authError").textContent = ""; renderAuthMode(); });
+    $("authClose").addEventListener("click", closeAuth);
+    $("authBackdrop").addEventListener("click", (e) => { if (e.target === $("authBackdrop")) closeAuth(); });
+    $("authForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = $("authEmail").value.trim();
+      const password = $("authPassword").value;
+      $("authError").textContent = "";
+      $("authSubmit").disabled = true;
+      try {
+        const r = await fetch("/api/auth/" + (authMode === "signup" ? "signup" : "login"), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { $("authError").textContent = data.detail || "Something went wrong."; return; }
+        setToken(data.token);
+        state.user = { email: data.email };
+        closeAuth();
+        renderAccount();
+        loadTasteProfile(true);
+      } catch (err) {
+        $("authError").textContent = "Couldn't reach the server.";
+      } finally {
+        $("authSubmit").disabled = false;
+      }
+    });
+
+    function persistableTaste() {
+      const t = state.taste;
+      return {
+        liked_movies: t.liked_movies, vibes: t.vibes, rating_flexibility: t.rating_flexibility,
+        language_scope: t.language_scope, era: t.era, runtime: t.runtime,
+        movie_type: t.movie_type, zeitgeist: t.zeitgeist,
+      };
+    }
+    async function saveTasteProfile() {
+      if (!state.user) return;
+      $("tasteStatus").textContent = "Saving to your account...";
+      try {
+        const r = await authedFetch("/api/taste-profile", {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profile: persistableTaste() }),
+        });
+        if (r.status === 401) { signOut(); $("tasteStatus").textContent = "Session expired — sign in again."; return; }
+        $("tasteStatus").textContent = r.ok ? "Saved to your account ✓" : "Couldn't save right now.";
+      } catch (e) { $("tasteStatus").textContent = "Couldn't save right now."; }
+    }
+    async function loadTasteProfile(silent) {
+      if (!state.user) return;
+      try {
+        const r = await authedFetch("/api/taste-profile");
+        if (r.status === 401) { signOut(); return; }
+        if (!r.ok) return;
+        const data = await r.json();
+        if (data.profile) {
+          Object.assign(state.taste, data.profile);
+          renderTasteControls();
+          if (!silent) $("tasteStatus").textContent = "Loaded your saved profile.";
+        } else if (!silent) {
+          $("tasteStatus").textContent = "No saved profile yet — set signals and Save.";
+        }
+      } catch (e) { /* ignore */ }
+    }
+    $("saveTaste").addEventListener("click", saveTasteProfile);
+    $("loadTaste").addEventListener("click", () => loadTasteProfile(false));
+
     /* ---------------- init ---------------- */
     async function init() {
       try { state.allGenres = await api("/api/genres"); } catch (e) { state.allGenres = []; }
@@ -1163,6 +1314,15 @@
       try { state.collections = await api("/api/collections"); } catch (e) { state.collections = []; }
       renderCollections();
       renderTasteControls();
+      try { const cfg = await api("/api/config"); state.accountsEnabled = !!cfg.accounts_enabled; } catch (e) {}
+      if (state.accountsEnabled && getToken()) {
+        try {
+          const me = await authedFetch("/api/auth/me");
+          if (me.ok) { state.user = await me.json(); } else { setToken(""); }
+        } catch (e) {}
+      }
+      renderAccount();
+      if (state.user) loadTasteProfile(true);
       await fetchMovies();
     }
     init();
