@@ -130,6 +130,33 @@
     .mini .mbadge .star { color:var(--gold); }
     .mini .mt { position:absolute; left:9px; right:9px; bottom:9px; font-size:12px; font-weight:700; line-height:1.2; text-shadow:0 1px 5px rgba(0,0,0,.8); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     .mini .shared { font-size:11px; color:var(--gold); font-weight:700; margin-top:6px; }
+    .detail-section { padding:0 26px 26px; }
+    .detail-section h3 { font-size:15px; font-weight:800; margin:8px 0 14px; letter-spacing:-.01em; }
+    .cast-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(118px,1fr)); gap:14px; }
+    .person-card { background:#202020; border:1px solid rgba(255,255,255,.08); border-radius:10px; overflow:hidden; min-width:0; }
+    .person-card img, .person-fallback { width:100%; aspect-ratio:1/1.12; object-fit:cover; display:block; background:#2a2a2a; }
+    .person-fallback { display:flex; align-items:center; justify-content:center; color:var(--faint); font-size:22px; font-weight:800; }
+    .person-info { padding:9px; }
+    .person-name { font-size:12.5px; font-weight:800; line-height:1.2; color:var(--text); }
+    .person-role { font-size:11.5px; color:var(--faint); margin-top:4px; line-height:1.25; }
+    .crew-list { color:var(--dim); line-height:1.75; font-size:14px; }
+    .crew-list b { color:var(--text); }
+    .facts-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:10px; }
+    .fact { background:#202020; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:11px 12px; }
+    .fact b { display:block; color:var(--faint); font-size:11px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
+    .fact span { color:var(--text); font-size:13.5px; font-weight:650; }
+    .provider-group { margin-bottom:12px; }
+    .provider-group b { display:block; margin-bottom:8px; font-size:13px; }
+    .provider-row { display:flex; flex-wrap:wrap; gap:8px; }
+    .provider { display:inline-flex; align-items:center; gap:7px; background:#202020; border:1px solid rgba(255,255,255,.08); border-radius:999px; padding:6px 10px; color:var(--dim); font-size:12.5px; font-weight:650; }
+    .provider img { width:22px; height:22px; border-radius:5px; object-fit:cover; }
+    .detail-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    .detail-link { display:inline-flex; align-items:center; justify-content:center; min-height:38px; border-radius:9px; padding:0 14px; background:var(--gold); color:#000; font-size:13px; font-weight:800; text-decoration:none; }
+    .detail-link.secondary { background:#262626; color:var(--text); border:1px solid rgba(255,255,255,.1); }
+    .detail-loading { color:var(--faint); font-size:14px; background:#202020; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:14px; }
+    .rec-group { margin-bottom:22px; }
+    .rec-group:last-child { margin-bottom:0; }
+    .rec-title { color:var(--dim); font-size:13px; font-weight:800; margin:0 0 10px; }
 
     /* ---- AI chat ---- */
     .fab { position:fixed; bottom:24px; right:24px; z-index:40; width:58px; height:58px; border-radius:50%; background:var(--gold); border:none; cursor:pointer; font-size:24px; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 20px rgba(0,0,0,.5); transition:transform .14s ease; }
@@ -237,6 +264,10 @@
       modalId: null,
       chatOpen: false, chatMessages: [], typing: false,
     };
+    const movieCache = new Map();
+    const extrasCache = new Map();
+    const providerCache = new Map();
+    const recCache = new Map();
 
     // Deterministic poster gradient (matches design tokens) for missing images.
     const PALETTES = [
@@ -265,6 +296,10 @@
       const r = await fetch(path);
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
+    }
+    async function cached(map, key, path) {
+      if (!map.has(key)) map.set(key, api(path));
+      return map.get(key);
     }
 
     function buildQuery() {
@@ -434,22 +469,132 @@
         </div>`;
     }
 
+    function personHTML(p) {
+      const photo = p.profile_url
+        ? `<img src="${esc(p.profile_url)}" alt="" loading="lazy" />`
+        : `<div class="person-fallback">${esc((p.name || "?").slice(0, 1))}</div>`;
+      return `
+        <div class="person-card">
+          ${photo}
+          <div class="person-info">
+            <div class="person-name">${esc(p.name || "Unknown")}</div>
+            <div class="person-role">${esc(p.character || p.job || "")}</div>
+          </div>
+        </div>`;
+    }
+
+    function crewHTML(crew, loading) {
+      if (loading) return `<div class="detail-section"><h3>Crew</h3><div class="detail-loading">Loading crew...</div></div>`;
+      if (!crew) return "";
+      const rows = [
+        crew.directors?.length ? `<div><b>Directing:</b> ${crew.directors.map(esc).join(", ")}</div>` : "",
+        crew.writers?.length ? `<div><b>Writing:</b> ${crew.writers.map(esc).join(", ")}</div>` : "",
+        crew.producers?.length ? `<div><b>Production:</b> ${crew.producers.map(esc).join(", ")}</div>` : "",
+        crew.composers?.length ? `<div><b>Music:</b> ${crew.composers.map(esc).join(", ")}</div>` : "",
+      ].filter(Boolean).join("");
+      return rows ? `<div class="detail-section"><h3>Crew</h3><div class="crew-list">${rows}</div></div>` : "";
+    }
+
+    function money(n) {
+      if (!n) return "";
+      if (n >= 1e9) return "$" + (n / 1e9).toFixed(1) + "B";
+      if (n >= 1e6) return "$" + Math.round(n / 1e6) + "M";
+      return "$" + Number(n).toLocaleString();
+    }
+
+    function factsHTML(m) {
+      const country = (m.production_countries || []).map((c) => c.name || c).filter(Boolean).join(", ");
+      const companies = (m.production_companies || []).map((c) => c.name || c).filter(Boolean).slice(0, 3).join(", ");
+      const facts = [
+        ["Status", m.status],
+        ["Release", m.release_date],
+        ["Country", country],
+        ["Budget", money(m.budget)],
+        ["Revenue", money(m.revenue)],
+        ["Studios", companies],
+      ].filter(([, v]) => v);
+      if (!facts.length) return "";
+      return `<div class="detail-section"><h3>Details</h3><div class="facts-grid">${facts.map(([k, v]) => `<div class="fact"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join("")}</div></div>`;
+    }
+
+    function providersHTML(providers, loading) {
+      if (loading) return `<div class="detail-section"><h3>Where to watch in India</h3><div class="detail-loading">Loading availability...</div></div>`;
+      if (!providers || (!providers.flatrate?.length && !providers.rent?.length && !providers.buy?.length)) {
+        return `<div class="detail-section"><h3>Where to watch in India</h3><div class="detail-loading">No India streaming, rent, or buy options found on TMDb for this title.</div></div>`;
+      }
+      const group = (label, rows) => rows?.length
+        ? `<div class="provider-group"><b>${label}</b><div class="provider-row">${rows.map((p) => `<span class="provider">${p.logo_url ? `<img src="${esc(p.logo_url)}" alt="" />` : ""}${esc(p.name)}</span>`).join("")}</div></div>`
+        : "";
+      const body = [group("Stream", providers.flatrate), group("Rent", providers.rent), group("Buy", providers.buy)].join("");
+      return `<div class="detail-section"><h3>Where to watch in India</h3>${body}${providers.link ? `<a class="detail-link secondary" href="${esc(providers.link)}" target="_blank" rel="noreferrer">View all options</a>` : ""}</div>`;
+    }
+
+    function recGroupsHTML(groups, loading, fallbackSimilar) {
+      if (loading) return `<div class="similar-wrap"><h3>More like this</h3><div class="detail-loading">Loading recommendations...</div></div>`;
+      const entries = groups ? Object.values(groups).filter((g) => g.results?.length) : [];
+      if (entries.length) {
+        return `<div class="similar-wrap"><h3>More like this</h3>${entries.map((g) => `
+          <div class="rec-group">
+            <div class="rec-title">${esc(g.label)}</div>
+            <div class="similar-grid">${g.results.map((s) => miniHTML(s, s.shared_genres != null ? `${s.shared_genres} shared genre${s.shared_genres === 1 ? "" : "s"}` : null)).join("")}</div>
+          </div>`).join("")}</div>`;
+      }
+      const simHTML = fallbackSimilar?.length
+        ? fallbackSimilar.map((s) => miniHTML(s, (s.shared_genres || 0) + " shared genre" + (s.shared_genres === 1 ? "" : "s"))).join("")
+        : `<p style="color:var(--faint)">No similar titles found.</p>`;
+      return `<div class="similar-wrap"><h3>More like this</h3><div class="similar-grid">${simHTML}</div></div>`;
+    }
+
     async function openModal(id) {
-      state.modalId = id;
+      const key = String(id);
+      state.modalId = key;
       $("modal").classList.add("open");
       $("modalContent").innerHTML = `<div style="padding:60px;text-align:center;color:var(--faint)">Loading…</div>`;
       try {
-        const [m, sim] = await Promise.all([
-          api(`/api/movies/${id}`),
-          api(`/api/movies/${id}/similar?limit=8`),
-        ]);
-        renderModal(m, sim.results || []);
+        const m = await cached(movieCache, key, `/api/movies/${id}`);
+        let movie = { ...m };
+        let similar = null;
+        let providers = null;
+        let groups = null;
+        let extrasLoading = true;
+        let providersLoading = true;
+        let recLoading = true;
+        const rerender = () => {
+          if (state.modalId === key) renderModal(movie, { similar, providers, groups, extrasLoading, providersLoading, recLoading });
+        };
+        rerender();
+        cached(extrasCache, key, `/api/movies/${id}/extras`)
+          .then((extras) => {
+            if (state.modalId !== key) return;
+            movie = { ...movie, ...extras };
+            extrasLoading = false;
+            rerender();
+          })
+          .catch(() => { extrasLoading = false; rerender(); });
+        cached(providerCache, key, `/api/movies/${id}/watch-providers?region=IN`)
+          .then((data) => {
+            if (state.modalId !== key) return;
+            providers = data;
+            providersLoading = false;
+            rerender();
+          })
+          .catch(() => { providersLoading = false; rerender(); });
+        Promise.all([
+          cached(recCache, key, `/api/movies/${id}/recommendations?limit=8`).catch(() => null),
+          api(`/api/movies/${id}/similar?limit=8`).catch(() => ({ results: [] })),
+        ]).then(([rec, sim]) => {
+          if (state.modalId !== key) return;
+          groups = rec?.groups || null;
+          similar = sim?.results || [];
+          recLoading = false;
+          rerender();
+        }).catch(() => { recLoading = false; rerender(); });
       } catch (e) {
         $("modalContent").innerHTML = `<div style="padding:60px;text-align:center;color:var(--faint)">Couldn't load this title.</div>`;
       }
     }
 
-    function renderModal(m, similar) {
+    function renderModal(m, detail = {}) {
       const { bg, img } = posterLayer(m);
       const lang = m.original_language ? m.original_language.toUpperCase() : "";
       const runtime = m.runtime ? m.runtime + " min" : "";
@@ -464,9 +609,14 @@
         lang ? `<span>${lang}</span>` : "",
         votes ? `<span class="votes">${votes}</span>` : "",
       ].filter(Boolean).join("");
-      const simHTML = similar.length
-        ? similar.map((s) => miniHTML(s, (s.shared_genres || 0) + " shared genre" + (s.shared_genres === 1 ? "" : "s"))).join("")
-        : `<p style="color:var(--faint)">No similar titles found.</p>`;
+      const actionLinks = [
+        m.trailer_url ? `<a class="detail-link" href="${esc(m.trailer_url)}" target="_blank" rel="noreferrer">Watch trailer</a>` : "",
+        m.homepage ? `<a class="detail-link secondary" href="${esc(m.homepage)}" target="_blank" rel="noreferrer">Official site</a>` : "",
+      ].filter(Boolean).join("");
+      const tagline = m.tagline ? `<p class="overview"><em>${esc(m.tagline)}</em></p>` : "";
+      const cast = m.cast?.length
+        ? `<div class="detail-section"><h3>Cast</h3><div class="cast-grid">${m.cast.map(personHTML).join("")}</div></div>`
+        : detail.extrasLoading ? `<div class="detail-section"><h3>Cast</h3><div class="detail-loading">Loading cast...</div></div>` : "";
       $("modalContent").innerHTML = `
         <button class="modal-close" id="modalClose">×</button>
         <div class="hero">
@@ -479,13 +629,16 @@
             <h2>${esc(m.title)}</h2>
             <div class="hero-meta">${metaParts}</div>
             <div class="gchips">${(m.genres || []).map((g) => `<span>${esc(g)}</span>`).join("")}</div>
+            ${tagline}
             <p class="overview">${esc(m.overview || "No overview available.")}</p>
+            ${actionLinks ? `<div class="detail-actions">${actionLinks}</div>` : ""}
           </div>
         </div>
-        <div class="similar-wrap">
-          <h3>More like this</h3>
-          <div class="similar-grid">${simHTML}</div>
-        </div>`;
+        ${cast}
+        ${crewHTML(m.crew, detail.extrasLoading && !m.crew)}
+        ${factsHTML(m)}
+        ${providersHTML(detail.providers, detail.providersLoading)}
+        ${recGroupsHTML(detail.groups, detail.recLoading, detail.similar)}`;
       $("modalClose").addEventListener("click", closeModal);
     }
     function closeModal() { state.modalId = null; $("modal").classList.remove("open"); }
