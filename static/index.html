@@ -225,11 +225,67 @@
     .chat-suggestions { display:flex; flex-wrap:wrap; gap:7px; padding:0 12px 12px; background:#101010; }
     .chat-suggestions button { border:1px solid #333; background:#202020; color:var(--dim); border-radius:999px; padding:7px 10px; font-family:inherit; font-size:12px; font-weight:800; cursor:pointer; }
 
+    /* ---- Touch / mobile niceties ---- */
+    * { -webkit-tap-highlight-color: transparent; }
+    body.locked { overflow: hidden; }
+    .collections { -webkit-overflow-scrolling: touch; }
+    @media (hover: none) {
+      .card:hover .poster { transform:none; box-shadow:0 2px 8px rgba(0,0,0,.4); border-color:rgba(255,255,255,.06); }
+      .fab:hover { transform:none; }
+    }
+
+    /* ---- Tablet ---- */
     @media (max-width: 780px) {
       header, .controls, .collections, .meta, .grid, .taste-panel { padding-left:18px; padding-right:18px; }
       .taste-panel { grid-template-columns:1fr; }
       .taste-row { grid-template-columns:1fr; }
       .grid { grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); }
+    }
+
+    /* ---- Phone ---- */
+    @media (max-width: 600px) {
+      header, .controls, .collections, .meta, .grid, .taste-panel { padding-left:14px; padding-right:14px; }
+      /* header: drop tagline, let search fill */
+      .tagline { display:none; }
+      .search-wrap { width:auto; flex:1; max-width:none; }
+      /* control bar: full-width stacked controls */
+      .controls { gap:12px; padding-top:16px; padding-bottom:16px; }
+      .controls .spacer { display:none; }
+      .field { flex:1 1 calc(50% - 6px); min-width:0; }
+      #genreField { flex-basis:100%; }
+      .field .ctl, .genre-trigger, select.ctl { width:100% !important; min-width:0; }
+      .taste-btn, .reset-btn { flex:1 1 calc(50% - 6px); }
+      /* genre popover -> bottom sheet */
+      .popover { position:fixed; left:0; right:0; bottom:0; top:auto; width:auto; margin:0; border-radius:16px 16px 0 0; max-height:72vh; overflow-y:auto; }
+      .genre-pills { max-height:none; }
+      /* taste / For You panel */
+      .taste-actions { flex-direction:column; align-items:stretch; }
+      .taste-actions button { width:100%; }
+      .anchor-picker { grid-template-columns:1fr; }
+      .anchor-picker button { width:100%; }
+      /* poster grid: 2 columns */
+      .grid { grid-template-columns:repeat(2, 1fr); gap:18px 12px; }
+      /* detail modal -> full-screen sheet, hero stacks */
+      .modal-backdrop { padding:0; }
+      .modal { max-width:none; min-height:100dvh; border-radius:0; border:0; }
+      .hero { flex-direction:column; gap:16px; padding:18px; }
+      .hero-poster { width:150px; margin:0 auto; }
+      .hero-info h2 { font-size:22px; margin-right:44px; }
+      .similar-wrap, .detail-section { padding-left:18px; padding-right:18px; }
+      .similar-grid, .cast-grid { grid-template-columns:repeat(auto-fill, minmax(96px,1fr)); }
+      .facts-grid { grid-template-columns:1fr 1fr; }
+      /* chat -> full-screen */
+      .chat-panel { inset:0; width:auto; height:auto; max-width:none; max-height:none; border-radius:0; }
+      .fab { bottom:18px; right:18px; }
+      /* bigger tap targets */
+      .ctl, .genre-trigger, .reset-btn, .taste-btn, .chat-form input, .chat-form button { height:44px; }
+    }
+
+    /* ---- Small phone ---- */
+    @media (max-width: 400px) {
+      .card-title { font-size:15px; }
+      .card-sub { font-size:12.5px; }
+      .grid { gap:14px 10px; }
     }
   </style>
 </head>
@@ -841,6 +897,7 @@
       const key = String(id);
       state.modalId = key;
       $("modal").classList.add("open");
+      updateScrollLock();
       $("modalContent").innerHTML = `<div style="padding:60px;text-align:center;color:var(--faint)">Loading…</div>`;
       try {
         const m = await cached(movieCache, key, `/api/movies/${id}`);
@@ -932,7 +989,11 @@
         ${recGroupsHTML(detail.groups, detail.recLoading, detail.similar)}`;
       $("modalClose").addEventListener("click", closeModal);
     }
-    function closeModal() { state.modalId = null; $("modal").classList.remove("open"); }
+    function closeModal() { state.modalId = null; $("modal").classList.remove("open"); updateScrollLock(); }
+    const isMobile = () => window.matchMedia("(max-width: 600px)").matches;
+    function updateScrollLock() {
+      document.body.classList.toggle("locked", isMobile() && (state.modalId !== null || state.chatOpen));
+    }
 
     /* ---------------- chat ---------------- */
     function renderChat() {
@@ -1067,13 +1128,14 @@
     $("fab").addEventListener("click", () => {
       state.chatOpen = true;
       $("chatPanel").classList.add("open");
+      updateScrollLock();
       if (!state.chatMessages.length) {
         state.chatMessages.push({ role: "bot", text: "Hi! Tell me what you're in the mood for \u2014 a genre, a vibe, or a movie you love \u2014 and I'll find something for you." });
       }
       renderChat();
       $("chatInput").focus();
     });
-    $("chatClose").addEventListener("click", () => { state.chatOpen = false; $("chatPanel").classList.remove("open"); });
+    $("chatClose").addEventListener("click", () => { state.chatOpen = false; $("chatPanel").classList.remove("open"); updateScrollLock(); });
     $("chatForm").addEventListener("submit", (e) => {
       e.preventDefault();
       const text = $("chatInput").value.trim();
