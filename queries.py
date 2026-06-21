@@ -10,6 +10,8 @@ Movie dicts have the same shape everywhere:
     overview, poster_url, popularity, genres (list of names)
 """
 
+import re
+
 import subgenres
 import tmdb
 
@@ -105,6 +107,35 @@ def _genre_name_to_id() -> dict[str, int]:
     return {name.lower(): gid for gid, name in _genre_id_to_name().items()}
 
 
+
+
+def _mojibake_score(text: str) -> int:
+    markers = (
+        "\u00c3", "\u00c2", "\u00e2", "\u00f0\u0178", "\ufffd",
+        "\x80", "\x81", "\x82", "\x83", "\x84", "\x85",
+    )
+    return sum(text.count(marker) for marker in markers)
+
+
+def _clean_text(value):
+    if not isinstance(value, str) or not _mojibake_score(value):
+        return value
+    best = value
+    best_score = _mojibake_score(value)
+    for encoding in ("latin1", "cp1252"):
+        try:
+            repaired = value.encode(encoding).decode("utf-8")
+        except UnicodeError:
+            continue
+        score = _mojibake_score(repaired)
+        if score < best_score:
+            best, best_score = repaired, score
+    if "\ufffd" in best:
+        best = re.sub(r"\s*\ufffd+\s*", " - ", best)
+        best = re.sub(r"\s+-\s+", " - ", best).strip(" -")
+    return best
+
+
 def _to_movie(item: dict) -> dict:
     """Normalise a TMDb movie (list item or full detail) to our shape."""
     gm = _genre_id_to_name()
@@ -116,13 +147,13 @@ def _to_movie(item: dict) -> dict:
     va = item.get("vote_average")
     return {
         "id": item["id"],
-        "title": item.get("title") or "Untitled",
+        "title": _clean_text(item.get("title")) or "Untitled",
         "release_year": tmdb.year_of(item.get("release_date")),
         "rating": round(va, 1) if va else None,
         "vote_count": item.get("vote_count"),
         "runtime": item.get("runtime"),  # present only on /movie/{id}
         "original_language": item.get("original_language"),
-        "overview": item.get("overview"),
+        "overview": _clean_text(item.get("overview")),
         "poster_url": tmdb.poster_url(item.get("poster_path")),
         "popularity": item.get("popularity"),
         "genres": genres,
@@ -204,8 +235,8 @@ def _cast(credits: dict | None, limit: int = 8) -> list[dict]:
     for person in (credits or {}).get("cast", [])[:limit]:
         cast.append({
             "id": person.get("id"),
-            "name": person.get("name"),
-            "character": person.get("character"),
+            "name": _clean_text(person.get("name")),
+            "character": _clean_text(person.get("character")),
             "profile_url": tmdb.profile_url(person.get("profile_path")),
         })
     return cast
@@ -215,7 +246,7 @@ def _crew(credits: dict | None) -> dict:
     out = {"directors": [], "writers": [], "composers": []}
     for person in (credits or {}).get("crew", []):
         job = person.get("job")
-        name = person.get("name")
+        name = _clean_text(person.get("name"))
         if not name:
             continue
         if job == "Director" and name not in out["directors"]:
@@ -235,7 +266,7 @@ def _crew_ids(credits: dict | None) -> dict:
         name = person.get("name")
         if not pid or not name:
             continue
-        item = {"id": pid, "name": name}
+        item = {"id": pid, "name": _clean_text(name)}
         if job == "Director" and item not in out["directors"]:
             out["directors"].append(item)
         elif job in {"Writer", "Screenplay", "Story"} and item not in out["writers"]:
@@ -248,16 +279,16 @@ def _crew_ids(credits: dict | None) -> dict:
 def _enrich_movie_detail(data: dict) -> dict:
     movie = _to_movie(data)
     movie.update({
-        "tagline": data.get("tagline"),
-        "status": data.get("status"),
+        "tagline": _clean_text(data.get("tagline")),
+        "status": _clean_text(data.get("status")),
         "release_date": data.get("release_date"),
         "budget": _money(data.get("budget")),
         "revenue": _money(data.get("revenue")),
         "production_countries": [
-            c.get("name") for c in data.get("production_countries", []) if c.get("name")
+            _clean_text(c.get("name")) for c in data.get("production_countries", []) if c.get("name")
         ],
         "production_companies": [
-            c.get("name") for c in data.get("production_companies", []) if c.get("name")
+            _clean_text(c.get("name")) for c in data.get("production_companies", []) if c.get("name")
         ][:4],
         "cast": _cast(data.get("credits")),
         "crew": _crew(data.get("credits")),
@@ -519,7 +550,6 @@ def recommendation_groups(movie_id: int, limit: int = 8) -> dict | None:
     ref_year = ref_movie.get("release_year")
     credits = ref.get("credits") or {}
     director_ids = [p["id"] for p in _crew_ids(credits).get("directors", []) if p.get("id")]
-    cast_ids = [p.get("id") for p in credits.get("cast", [])[:3] if p.get("id")]
 
     def without_ref(rows: list[dict]) -> list[dict]:
         out = []
@@ -531,7 +561,6 @@ def recommendation_groups(movie_id: int, limit: int = 8) -> dict | None:
     groups = {
         "tmdb": {"label": "TMDb recommends", "results": without_ref(similar_movies(movie_id, limit=limit))},
         "director": {"label": "Same director", "results": []},
-        "cast": {"label": "Same cast", "results": []},
         "decade": {"label": "Same era and genres", "results": []},
     }
 
@@ -544,16 +573,6 @@ def recommendation_groups(movie_id: int, limit: int = 8) -> dict | None:
             page=1,
         )
         groups["director"]["results"] = without_ref([_to_movie(it) for it in data.get("results", [])])
-
-    if cast_ids:
-        data = tmdb.get(
-            "/discover/movie",
-            with_cast="|".join(str(pid) for pid in cast_ids),
-            include_adult="false",
-            sort_by="popularity.desc",
-            page=1,
-        )
-        groups["cast"]["results"] = without_ref([_to_movie(it) for it in data.get("results", [])])
 
     if ref_year and ref_genre_ids:
         decade_start = (ref_year // 10) * 10

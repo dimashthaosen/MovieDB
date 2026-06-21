@@ -1,7 +1,7 @@
-"""AI movie companion, powered by OpenRouter (OpenAI-compatible API).
+﻿"""AI movie companion, powered by OpenRouter (OpenAI-compatible API).
 
-The model can't see the database directly. Instead we expose two tools —
-search_movies and similar_movies — and let the model call them to ground every
+The model can't see the database directly. Instead we expose two tools:
+search_movies and similar_movies. The model calls them to ground every
 recommendation in real rows from movies.db. The model interprets natural-language
 requests ("a short feel-good sci-fi for tonight"), calls the tools, and replies
 conversationally; we also surface the actual movies it found as cards.
@@ -118,23 +118,26 @@ GENRE_ALIASES = {
 SYSTEM_PROMPT = (
     "You are MovieDB's friendly movie companion. You help the user find films to "
     "watch from a local database. You CANNOT recommend any movie unless it is "
-    "returned by one of your tools — never invent titles or rely on outside "
+    "returned by one of your tools - never invent titles or rely on outside "
     "knowledge for recommendations. Use search_movies for descriptive requests "
     "(genre, language, country, era, actor, rating, mood) and similar_movies "
     "when the user references a specific film. Understand natural phrasing: "
     "Tamil movies means language=ta, Hindi means language=hi, Hong Kong means "
     "origin_country=HK, and late 90s means 1997-1999. For actor requests, pass "
     "the person's name in `people`, e.g. Shahrukh/SRK means Shah Rukh Khan. "
-    "For niche sub-genres like cyberpunk, film noir, anime, "
-    "heist, slasher or zombie movies, pass the matching `collection` argument to "
-    "search_movies rather than guessing broad genres. Call the tools, then "
-    "recommend a few options conversationally. Format replies as a short intro "
-    "followed by Markdown bullets. Each bullet must start with **Title** (YYYY) "
-    "when the year is known, or **Title** if it is not. Use only the year from "
-    "tool results; do not write full dates like YYYY-MM-DD, approximate dates, "
-    "or release-date labels. Keep each reason to one sentence. Do not use tables."
+    "For niche sub-genres like cyberpunk, film noir, anime, heist, slasher or "
+    "zombie movies, pass the matching `collection` argument to search_movies. "
+    "Treat follow-up messages as refinements of the previous request when possible, "
+    "especially phrases like more like that, older, lighter, Tamil instead, or not horror. "
+    "Use the current UI context if it helps, but do not overfit to it when the user "
+    "clearly asks for something else. Call the tools, then recommend a few options "
+    "conversationally. Format replies as a short, warm intro followed by Markdown bullets. "
+    "Each bullet must start with **Title** (YYYY) when the year is known, or **Title** "
+    "if it is not. Add one crisp reason and, when useful, a tiny why-now cue such as "
+    "tone, era, language, or cast fit. Use only the year from tool results; do not "
+    "write full dates like YYYY-MM-DD, approximate dates, or release-date labels. "
+    "Do not use tables."
 )
-
 TOOLS = [
     {
         "type": "function",
@@ -386,11 +389,16 @@ def _context_message(context: dict | None) -> dict | None:
     safe = {
         "search": context.get("search"),
         "genre": context.get("genre"),
+        "genres": context.get("genres"),
         "collection": context.get("collection"),
+        "active_collection": context.get("active_collection"),
         "year_min": context.get("year_min"),
         "year_max": context.get("year_max"),
         "rating_min": context.get("rating_min"),
         "sort_by": context.get("sort_by"),
+        "mode": context.get("mode"),
+        "taste": context.get("taste"),
+        "visible_titles": context.get("visible_titles"),
     }
     safe = {k: v for k, v in safe.items() if v not in (None, "")}
     if not safe:
@@ -455,8 +463,8 @@ def chat(history: list[dict], context: dict | None = None) -> dict:
                 surfaced.setdefault(m["id"], m)
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": result_json})
 
-    # Hit the loop cap — return whatever we have with a graceful note.
+    # Hit the loop cap and return whatever we have with a graceful note.
     return {
-        "reply": "I found some options but couldn't quite finish — here's what matched.",
+        "reply": "I found some options but could not quite finish, so here is what matched.",
         "movies": list(surfaced.values()),
     }
