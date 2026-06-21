@@ -90,7 +90,7 @@ def get(path: str, **params) -> dict:
     for attempt in range(MAX_ROUNDS):
         for host in _candidate_hosts():
             try:
-                resp = requests.get(f"{host}{path}", params=query, timeout=15)
+                resp = requests.get(f"{host}{path}", params=query, timeout=8)
                 if resp.status_code == 404:
                     raise TMDbNotFound(path)
                 if resp.status_code in (401, 403):
@@ -100,6 +100,9 @@ def get(path: str, **params) -> dict:
                         f"TMDb auth failed ({resp.status_code}). Key seen: {_key_fingerprint()}. "
                         f"Expected a 32-char v3 key. TMDb said: {resp.text[:140]}"
                     )
+                if resp.status_code in (500, 502, 503, 504):
+                    last_err = requests.HTTPError(f"{resp.status_code}: {resp.text[:140]}")
+                    continue
                 resp.raise_for_status()
                 data = resp.json()
                 _base_url = host
@@ -107,6 +110,8 @@ def get(path: str, **params) -> dict:
                 return data
             except requests.RequestException as e:
                 last_err = e
+        if isinstance(last_err, requests.HTTPError):
+            raise TMDbError(f"TMDb backend unavailable: {last_err}")
         time.sleep(1.0 * (attempt + 1))
     raise TMDbError(f"TMDb unreachable after {MAX_ROUNDS} retries: {type(last_err).__name__}")
 

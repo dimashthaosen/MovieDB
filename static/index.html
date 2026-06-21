@@ -56,6 +56,77 @@
     #sortBy, #sortDir { min-width: 155px; }
     #genres { min-width: 175px; }
     #movieSearch { width: min(280px, 42vw); }
+    .filter-actions { display: flex; gap: .6rem; align-items: center; }
+    .secondary-button {
+      background: #2b2b2b; color: #fff; border: 1px solid #3a3a3a;
+    }
+    .secondary-button:hover { border-color: var(--imdb-gold); background: #333; }
+    .advanced-panel {
+      display: none; flex-wrap: wrap; gap: 1rem; align-items: end;
+      padding: 0 1.5rem 1.25rem; background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+    .advanced-panel.open { display: flex; }
+    .taste-panel {
+      display: none; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+      gap: 1.25rem; padding: 1.25rem 1.5rem; background: #141414;
+      border-bottom: 1px solid var(--border);
+    }
+    .taste-panel.open { display: grid; }
+    .taste-builder, .taste-preview {
+      background: #1d1d1d; border: 1px solid var(--border); border-radius: 8px;
+      padding: 1rem;
+    }
+    .taste-builder h2, .taste-preview h2 { margin: 0 0 .35rem; font-size: 1.05rem; }
+    .taste-builder p, .taste-preview p { margin: 0 0 .9rem; color: var(--text-faint); font-size: .86rem; line-height: 1.45; }
+    .taste-section { margin-top: 1rem; }
+    .taste-section:first-of-type { margin-top: 0; }
+    .slider-heading {
+      display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+      margin-bottom: .35rem;
+    }
+    .slider-value {
+      color: var(--text-dim); font-size: .78rem; font-weight: 700;
+      text-transform: none; letter-spacing: 0;
+    }
+    .slider-labels {
+      display: flex; justify-content: space-between; gap: .5rem;
+      margin-top: .35rem; color: var(--text-faint); font-size: .74rem;
+    }
+    .taste-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; }
+    .taste-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vibe-chip {
+      background: #292929; color: var(--text-dim); border: 1px solid #3a3a3a;
+      border-radius: 999px; padding: .48rem .65rem; font-size: .8rem;
+    }
+    .vibe-chip.active { background: var(--imdb-gold); color: #000; border-color: var(--imdb-gold); }
+    .anchor-list { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .65rem; }
+    .anchor-pill {
+      display: inline-flex; align-items: center; gap: .35rem; background: #2a2a2a;
+      border: 1px solid var(--border); border-radius: 999px; color: var(--text-dim);
+      padding: .3rem .45rem .3rem .65rem; font-size: .8rem;
+    }
+    .anchor-pill button { width: 20px; height: 20px; padding: 0; border-radius: 50%; }
+    .taste-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+    .taste-summary {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: .6rem; margin-top: .75rem;
+    }
+    .summary-tile { background: #242424; border: 1px solid var(--border); border-radius: 8px; padding: .65rem; }
+    .summary-tile b { display: block; font-size: .78rem; color: var(--text-faint); margin-bottom: .2rem; }
+    .summary-tile span { font-size: .9rem; color: var(--text); }
+    .suggest-wrap { position: relative; }
+    .suggestions {
+      position: absolute; top: calc(100% + .35rem); left: 0; z-index: 20;
+      width: min(340px, 80vw); background: #202020; border: 1px solid var(--border);
+      border-radius: 8px; display: none; overflow: hidden; box-shadow: 0 10px 24px rgba(0,0,0,.45);
+    }
+    .suggestions.open { display: block; }
+    .suggestion {
+      padding: .6rem .75rem; cursor: pointer; color: var(--text-dim);
+      display: flex; justify-content: space-between; gap: 1rem;
+    }
+    .suggestion:hover { background: #2b2b2b; color: #fff; }
     button {
       background: var(--imdb-gold); color: #000; border: none; border-radius: 4px;
       padding: .62rem 1.4rem; font-size: .92rem; font-weight: 700; cursor: pointer;
@@ -126,6 +197,12 @@
       display: flex; align-items: center; gap: .25rem;
       font-size: .82rem; font-weight: 700;
     }
+    .match-badge {
+      position: absolute; top: .5rem; right: .5rem;
+      background: rgba(245,197,24,.96); color: #000; border-radius: 999px;
+      padding: .25rem .55rem; font-size: .74rem; font-weight: 900;
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
     .rating-badge .star { color: var(--imdb-gold); }
     .card .body { padding: .65rem .75rem .9rem; }
     .card .title {
@@ -134,8 +211,55 @@
     }
     .card .year { font-size: .82rem; color: var(--text-dim); }
     .card .genres { font-size: .74rem; color: var(--text-faint); margin-top: .4rem; }
+    .match-panel {
+      margin: .7rem 0 .7rem; background: #242424; border: 1px solid #343434;
+      border-radius: 8px; padding: .65rem .7rem .7rem;
+    }
+    .match-topline {
+      display: flex; align-items: center; justify-content: space-between; gap: .55rem;
+      margin-bottom: .5rem;
+    }
+    .match-label {
+      color: #fff; font-size: .72rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .risk-level {
+      border: 1px solid rgba(245,197,24,.45); color: var(--imdb-gold);
+      background: rgba(245,197,24,.08); border-radius: 999px;
+      padding: .18rem .45rem; font-size: .68rem; font-weight: 800; white-space: nowrap;
+    }
+    .risk-level.safe { color: #8fd89b; border-color: rgba(143,216,155,.45); background: rgba(143,216,155,.08); }
+    .risk-level.wild { color: #ffb86b; border-color: rgba(255,184,107,.45); background: rgba(255,184,107,.08); }
+    .match-reasons { display: grid; gap: .4rem; }
+    .match-reasons span {
+      color: var(--text-dim); font-size: .73rem; line-height: 1.35;
+      display: grid; grid-template-columns: 14px 1fr; gap: .35rem; align-items: start;
+    }
+    .match-reasons span::before {
+      content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--imdb-gold);
+      margin-top: .38rem;
+    }
     .card { cursor: pointer; }
     .empty { padding: 4rem 2rem; text-align: center; color: var(--text-faint); grid-column: 1 / -1; }
+    .empty-actions { display: flex; justify-content: center; gap: .6rem; margin-top: 1rem; }
+    .watch-btn {
+      position: absolute; right: .5rem; bottom: .5rem; width: 34px; height: 34px;
+      border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.72); color: #fff; border: 1px solid rgba(255,255,255,.18);
+      font-size: 1.05rem;
+    }
+    .watch-btn.saved { background: var(--imdb-gold); color: #000; border-color: var(--imdb-gold); }
+    .skeleton-card {
+      background: var(--bg-card); border-radius: 10px; overflow: hidden;
+    }
+    .skeleton-poster, .skeleton-line {
+      background: linear-gradient(90deg, #242424, #303030, #242424);
+      background-size: 200% 100%; animation: shimmer 1.1s infinite linear;
+    }
+    .skeleton-poster { aspect-ratio: 2/3; }
+    .skeleton-line { height: 12px; border-radius: 999px; margin: .7rem .75rem; }
+    .skeleton-line.short { width: 55%; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
 
     /* ---- Detail modal ---- */
     .modal-backdrop {
@@ -222,10 +346,24 @@
     .person .role { color: var(--text-faint); font-size: .74rem; line-height: 1.3; margin-top: .2rem; }
     .crew-list { color: var(--text-dim); line-height: 1.7; font-size: .9rem; }
     .crew-list b { color: #fff; }
+    .provider-group { margin-bottom: .75rem; }
+    .provider-group b { display: block; margin-bottom: .35rem; }
+    .provider-row { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .provider {
+      display: inline-flex; align-items: center; gap: .35rem; background: #202020;
+      border: 1px solid var(--border); border-radius: 999px; padding: .25rem .55rem;
+      color: var(--text-dim); font-size: .78rem;
+    }
+    .provider img { width: 20px; height: 20px; border-radius: 4px; object-fit: cover; }
+    .person { cursor: pointer; }
+    .person:hover { border-color: var(--imdb-gold); }
     .modal-loading {
       color: var(--text-faint); font-size: .9rem; background: #202020;
       border: 1px solid var(--border); border-radius: 8px; padding: .8rem;
     }
+    .rec-group { margin-bottom: 1.3rem; }
+    .rec-group:last-child { margin-bottom: 0; }
+    .rec-group h4 { margin: 0 0 .75rem; font-size: .92rem; color: var(--text-dim); }
     .similar { padding: 0 1.5rem 1.5rem; }
     .similar h3 { font-size: 1rem; margin: .5rem 0 1rem; }
     .similar-row {
@@ -244,6 +382,8 @@
     }
     .mini .shared { font-size: .72rem; color: var(--imdb-gold); margin-top: .15rem; }
     @media (max-width: 700px) {
+      .taste-panel { grid-template-columns: 1fr; }
+      .taste-row, .taste-row.two { grid-template-columns: 1fr; }
       .modal-backdrop { padding: 1rem; }
       .modal-hero { grid-template-columns: 1fr; gap: 1rem; }
       .modal-poster { width: min(220px, 70vw); }
@@ -282,6 +422,11 @@
     .msg.user { align-self: flex-end; background: var(--imdb-gold); color: #000; }
     .msg.bot { align-self: flex-start; background: #2b2b2b; color: var(--text); }
     .msg.bot.err { background: #3a2020; color: #ffb4b4; }
+    .msg.bot { white-space: normal; }
+    .msg.bot p { margin: 0 0 .55rem; }
+    .msg.bot p:last-child { margin-bottom: 0; }
+    .msg.bot ul { margin: .35rem 0 0; padding-left: 1.1rem; }
+    .msg.bot li { margin: .35rem 0; }
     .typing { align-self: flex-start; color: var(--text-faint); font-size: .85rem; font-style: italic; }
     .chat-movies {
       align-self: flex-start; width: 100%;
@@ -301,29 +446,19 @@
   </header>
 
   <div class="filters">
-    <div class="field">
+    <div class="field suggest-wrap">
       <label for="movieSearch">Search movies</label>
       <input id="movieSearch" type="search" placeholder="Title, e.g. Inception" autocomplete="off" />
+      <div class="suggestions" id="suggestions"></div>
     </div>
     <div class="field">
       <label for="genres">Genres</label>
       <select id="genres"></select>
     </div>
     <div class="field">
-      <label for="yearMin">Year from</label>
-      <input id="yearMin" type="number" placeholder="1900" min="1900" max="2100" />
-    </div>
-    <div class="field">
-      <label for="yearMax">Year to</label>
-      <input id="yearMax" type="number" placeholder="2026" min="1900" max="2100" />
-    </div>
-    <div class="field">
-      <label for="ratingMin">Min rating</label>
-      <input id="ratingMin" type="number" placeholder="0" min="0" max="10" step="0.5" />
-    </div>
-    <div class="field">
       <label for="sortBy">Sort by</label>
       <select id="sortBy">
+        <option value="best_match">Best match</option>
         <option value="popularity">Popularity</option>
         <option value="rating">Rating</option>
         <option value="year">Year</option>
@@ -337,7 +472,149 @@
         <option value="asc">Low to high</option>
       </select>
     </div>
-    <button id="search">Search</button>
+    <div class="filter-actions">
+      <button id="search">Search</button>
+      <button class="secondary-button" id="tasteToggle" type="button">For You</button>
+      <button class="secondary-button" id="advancedToggle" type="button">Advanced</button>
+      <button class="secondary-button" id="watchlistToggle" type="button">Watchlist</button>
+    </div>
+  </div>
+
+  <div class="advanced-panel" id="advancedPanel">
+    <div class="field">
+      <label for="yearMin">Year from</label>
+      <input id="yearMin" type="number" placeholder="1900" min="1900" max="2100" />
+    </div>
+    <div class="field">
+      <label for="yearMax">Year to</label>
+      <input id="yearMax" type="number" placeholder="2026" min="1900" max="2100" />
+    </div>
+    <div class="field">
+      <label for="ratingMin">Min rating</label>
+      <input id="ratingMin" type="number" placeholder="0" min="0" max="10" step="0.5" />
+    </div>
+    <div class="field">
+      <label for="runtimeMax">Runtime max</label>
+      <input id="runtimeMax" type="number" placeholder="150" min="30" max="300" />
+    </div>
+    <div class="field">
+      <label for="language">Language</label>
+      <select id="language">
+        <option value="">Any language</option>
+        <option value="en">English</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="hi">Hindi</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+      </select>
+    </div>
+    <button class="secondary-button" id="clearFilters" type="button">Reset filters</button>
+  </div>
+
+  <div class="taste-panel" id="tastePanel">
+    <div class="taste-builder">
+      <h2>Taste Match</h2>
+      <p>Pick a few anchors and set how strict or adventurous the app should be.</p>
+      <div class="taste-section">
+        <label for="tasteMovieSearch">Movies you like</label>
+        <div class="suggest-wrap">
+          <input id="tasteMovieSearch" type="search" placeholder="Search and add 3-5 movies" autocomplete="off" />
+          <div class="suggestions" id="tasteSuggestions"></div>
+        </div>
+        <div class="anchor-list" id="anchorList"></div>
+      </div>
+      <div class="taste-section">
+        <label>Tonight's vibe</label>
+        <div class="taste-row">
+          <button class="vibe-chip" type="button" data-vibe="action">Action</button>
+          <button class="vibe-chip" type="button" data-vibe="funny">Funny</button>
+          <button class="vibe-chip" type="button" data-vibe="romantic">Romantic</button>
+          <button class="vibe-chip" type="button" data-vibe="dark">Dark</button>
+          <button class="vibe-chip" type="button" data-vibe="mind_bending">Mind-bending</button>
+          <button class="vibe-chip" type="button" data-vibe="comfort">Comfort</button>
+          <button class="vibe-chip" type="button" data-vibe="scary">Scary</button>
+          <button class="vibe-chip" type="button" data-vibe="visual">Visual</button>
+        </div>
+      </div>
+      <div class="taste-section">
+        <div class="slider-heading">
+          <label for="ratingFlex">Rating tolerance</label>
+          <span class="slider-value" id="ratingFlexLabel">Balanced</span>
+        </div>
+        <input id="ratingFlex" type="range" min="0" max="1" step="0.1" value="0.35" />
+        <div class="slider-labels" aria-hidden="true">
+          <span>Strict picks</span>
+          <span>Balanced</span>
+          <span>Hidden gems</span>
+        </div>
+      </div>
+      <div class="taste-section taste-row two">
+        <div class="field">
+          <label for="tasteLanguage">Language scope</label>
+          <select id="tasteLanguage">
+            <option value="">Any language</option>
+            <option value="english">English</option>
+            <option value="indian">Indian languages</option>
+            <option value="east_asian">East Asian</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="tasteEra">Era</label>
+          <select id="tasteEra">
+            <option value="">Any era</option>
+            <option value="new">New releases</option>
+            <option value="modern">2000s onward</option>
+            <option value="90s">90s</option>
+            <option value="classic">Older gems</option>
+          </select>
+        </div>
+      </div>
+      <div class="taste-section taste-row two">
+        <div class="field">
+          <label for="tasteType">Movie type</label>
+          <select id="tasteType">
+            <option value="">Any type</option>
+            <option value="prestige">Prestige / acclaimed</option>
+            <option value="popcorn">Big popcorn</option>
+            <option value="cult">Cult / unusual</option>
+            <option value="comfort">Comfort watch</option>
+            <option value="edgy">Edgy / tense</option>
+            <option value="imaginative">Imaginative worlds</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="tasteZeitgeist">Zeitgeist</label>
+          <select id="tasteZeitgeist">
+            <option value="">Any moment</option>
+            <option value="current">Current buzz</option>
+            <option value="mainstream">Mainstream hit</option>
+            <option value="modern_classic">Modern classic</option>
+            <option value="retro">Retro / classic</option>
+            <option value="sleeper">Sleeper discovery</option>
+          </select>
+        </div>
+      </div>
+      <div class="taste-section">
+        <label for="tasteRuntime">Runtime mood</label>
+        <select id="tasteRuntime">
+          <option value="">Any length</option>
+          <option value="short">Short and easy</option>
+          <option value="normal">Normal movie night</option>
+          <option value="epic">Epic is fine</option>
+        </select>
+      </div>
+      <div class="taste-actions">
+        <button id="runTaste" type="button">Find my matches</button>
+        <button class="secondary-button" id="resetTaste" type="button">Reset taste</button>
+        <button class="secondary-button" id="browseMode" type="button">Browse</button>
+      </div>
+    </div>
+    <div class="taste-preview">
+      <h2>Your Taste Profile</h2>
+      <p id="tasteHint">Add a few movies and choose a vibe. The app will score matches and explain the fit.</p>
+      <div class="taste-summary" id="tasteSummary"></div>
+    </div>
   </div>
 
   <div class="collections" id="collections"></div>
@@ -366,13 +643,122 @@
     const $ = (id) => document.getElementById(id);
     let activeCollection = null;  // currently selected sub-genre slug, or null
     let currentPage = 0;
+    let watchlistOnly = false;
+    let tasteMode = false;
+    let suggestionTimer = null;
+    let tasteSuggestionTimer = null;
     const PAGE_SIZE = 50;
+    const WATCHLIST_KEY = "moviedb.watchlist";
+    const WATCHLIST_MOVIES_KEY = "moviedb.watchlistMovies";
+    const TASTE_PROFILE_KEY = "moviedb.tasteProfile";
+    const watchlist = new Set(JSON.parse(localStorage.getItem(WATCHLIST_KEY) || "[]"));
+    const watchlistMovies = JSON.parse(localStorage.getItem(WATCHLIST_MOVIES_KEY) || "{}");
+    let tasteProfile = JSON.parse(localStorage.getItem(TASTE_PROFILE_KEY) || '{"liked_movies":[],"vibes":[],"rating_flexibility":0.35,"language_scope":"","era":"","runtime":"","movie_type":"","zeitgeist":""}');
 
     // Deterministic dark gradient per title, so each fallback poster is distinct.
     function gradientFor(title) {
       let h = 0;
       for (let i = 0; i < title.length; i++) h = (h * 31 + title.charCodeAt(i)) % 360;
       return `linear-gradient(150deg, hsl(${h} 45% 22%), hsl(${(h + 40) % 360} 50% 12%))`;
+    }
+
+    function saveWatchlist() {
+      localStorage.setItem(WATCHLIST_KEY, JSON.stringify([...watchlist]));
+      localStorage.setItem(WATCHLIST_MOVIES_KEY, JSON.stringify(watchlistMovies));
+      $("watchlistToggle").textContent = watchlistOnly ? `All movies` : `Watchlist (${watchlist.size})`;
+    }
+
+    function rememberMovie(m) {
+      if (!m || !m.id) return;
+      if (watchlist.has(String(m.id))) watchlistMovies[m.id] = m;
+    }
+
+    function saveTasteProfile() {
+      localStorage.setItem(TASTE_PROFILE_KEY, JSON.stringify(tasteProfile));
+    }
+
+    function profilePayload() {
+      const likedIds = (tasteProfile.liked_movies || [])
+        .map(m => Number(m?.id))
+        .filter(id => Number.isFinite(id) && id > 0);
+      return {
+        liked_movie_ids: likedIds,
+        vibes: tasteProfile.vibes || [],
+        rating_flexibility: Number(tasteProfile.rating_flexibility ?? 0.35),
+        language_scope: tasteProfile.language_scope || null,
+        era: tasteProfile.era || null,
+        runtime: tasteProfile.runtime || null,
+        movie_type: tasteProfile.movie_type || null,
+        zeitgeist: tasteProfile.zeitgeist || null,
+        limit: 36,
+      };
+    }
+
+    function ratingFlexLabel(value) {
+      const flex = Number(value ?? 0.35);
+      if (flex < .25) return "Strict picks";
+      if (flex > .65) return "Hidden gems welcome";
+      return "Balanced";
+    }
+
+    function renderTasteProfile() {
+      $("ratingFlex").value = tasteProfile.rating_flexibility ?? 0.35;
+      $("ratingFlexLabel").textContent = ratingFlexLabel(tasteProfile.rating_flexibility);
+      $("tasteLanguage").value = tasteProfile.language_scope || "";
+      $("tasteEra").value = tasteProfile.era || "";
+      $("tasteRuntime").value = tasteProfile.runtime || "";
+      $("tasteType").value = tasteProfile.movie_type || "";
+      $("tasteZeitgeist").value = tasteProfile.zeitgeist || "";
+      tasteProfile.liked_movies = (tasteProfile.liked_movies || [])
+        .filter(m => Number.isFinite(Number(m?.id)) && m.title);
+      $("anchorList").innerHTML = (tasteProfile.liked_movies || []).length
+        ? tasteProfile.liked_movies.map(m => `<span class="anchor-pill">${m.title}${m.release_year ? ` (${m.release_year})` : ""}<button type="button" data-remove-anchor="${m.id}">&times;</button></span>`).join("")
+        : `<span class="anchor-pill">No anchors yet</span>`;
+      document.querySelectorAll(".vibe-chip").forEach(btn => {
+        btn.classList.toggle("active", (tasteProfile.vibes || []).includes(btn.dataset.vibe));
+      });
+      const flex = Number(tasteProfile.rating_flexibility ?? 0.35);
+      const strictness = flex < .25 ? "Strict ratings" : flex > .65 ? "Open to hidden gems" : "Balanced";
+      $("tasteSummary").innerHTML = [
+        ["Anchors", `${(tasteProfile.liked_movies || []).length}/5 selected`],
+        ["Vibes", (tasteProfile.vibes || []).length ? tasteProfile.vibes.map(v => v.replace("_", " ")).join(", ") : "Any"],
+        ["Ratings", strictness],
+        ["Language", $("tasteLanguage").selectedOptions[0]?.textContent || "Any"],
+        ["Era", $("tasteEra").selectedOptions[0]?.textContent || "Any"],
+        ["Type", $("tasteType").selectedOptions[0]?.textContent || "Any"],
+        ["Zeitgeist", $("tasteZeitgeist").selectedOptions[0]?.textContent || "Any"],
+        ["Runtime", $("tasteRuntime").selectedOptions[0]?.textContent || "Any"],
+      ].map(([k, v]) => `<div class="summary-tile"><b>${k}</b><span>${v}</span></div>`).join("");
+      $("tasteHint").textContent = (tasteProfile.liked_movies || []).length || (tasteProfile.vibes || []).length
+        ? "Ready to score recommendations against your taste profile."
+        : "Add a few movies and choose a vibe. The app will score matches and explain the fit.";
+      saveTasteProfile();
+    }
+
+    function setUrlState() {
+      const params = new URLSearchParams();
+      const fields = ["movieSearch", "genres", "yearMin", "yearMax", "ratingMin", "runtimeMax", "language", "sortBy", "sortDir"];
+      for (const id of fields) {
+        const val = $(id)?.value;
+        if (val) params.set(id, val);
+      }
+      if (activeCollection) params.set("collection", activeCollection);
+      if (watchlistOnly) params.set("watchlist", "1");
+      if (tasteMode) params.set("forYou", "1");
+      if (currentPage) params.set("page", String(currentPage + 1));
+      history.replaceState(null, "", params.toString() ? `?${params}` : location.pathname);
+    }
+
+    function applyUrlState() {
+      const params = new URLSearchParams(location.search);
+      for (const id of ["movieSearch", "genres", "yearMin", "yearMax", "ratingMin", "runtimeMax", "language", "sortBy", "sortDir"]) {
+        if ($(id) && params.has(id)) $(id).value = params.get(id);
+      }
+      activeCollection = params.get("collection") || null;
+      watchlistOnly = params.get("watchlist") === "1";
+      tasteMode = params.get("forYou") === "1";
+      $("tastePanel").classList.toggle("open", tasteMode);
+      currentPage = Math.max((parseInt(params.get("page") || "1", 10) || 1) - 1, 0);
     }
 
     async function loadGenres() {
@@ -397,6 +783,8 @@
       add("year_min", $("yearMin").value);
       add("year_max", $("yearMax").value);
       add("rating_min", $("ratingMin").value);
+      add("runtime_max", $("runtimeMax").value);
+      add("language", $("language").value);
       if (activeCollection) params.set("collection", activeCollection);
       params.set("sort_by", $("sortBy").value);
       params.set("sort_dir", $("sortDir").value);
@@ -407,10 +795,10 @@
 
     async function loadCollections() {
       const cs = await fetch("/api/collections").then(r => r.json());
-      const chips = ['<button class="coll-chip active" data-slug="">All</button>'];
+      const chips = [`<button class="coll-chip ${activeCollection ? "" : "active"}" data-slug="">All</button>`];
       for (const c of cs) {
         chips.push(
-          `<button class="coll-chip" data-slug="${c.slug}">${c.emoji} ${c.label}` +
+          `<button class="coll-chip ${activeCollection === c.slug ? "active" : ""}" data-slug="${c.slug}">${c.emoji} ${c.label}` +
           ` <span class="cnt">${c.count}</span></button>`
         );
       }
@@ -443,11 +831,68 @@
         : "";
     }
 
+    function reasonText(reason) {
+      return String(reason || "")
+        .replace(/^shares your anchor taste:\s*/i, "Shares anchor taste: ")
+        .replace(/^matches your selected vibe:\s*/i, "Matches your vibe: ")
+        .replace(/^strong audience score/i, "Strong audience score")
+        .replace(/^lower-rated, but allowed by your adventurous setting/i, "Fits your adventurous rating range")
+        .replace(/^fits your language preference/i, "Fits your language preference")
+        .replace(/^fits your era preference/i, "Fits your era preference")
+        .replace(/^fits your runtime mood/i, "Fits your runtime mood")
+        .replace(/^connects multiple movies you liked/i, "Connects multiple movies you liked")
+        .replace(/^comes from a movie you liked/i, "Comes from a movie you liked")
+        .replace(/^balances your anchors with the chosen vibe/i, "Balances anchors with tonight's vibe")
+        .replace(/^was discovered from your selected vibe/i, "Discovered from your selected vibe")
+        .replace(/^blends your anchor taste with tonight's vibe/i, "Blends anchor taste with tonight's vibe")
+        .replace(/^hits the dark action-thriller lane/i, "Hits the dark action-thriller lane")
+        .replace(/^leans into a lighter comfort-romance mood/i, "Leans into a lighter comfort-romance mood")
+        .replace(/^leans into eerie, puzzle-box tension/i, "Leans into eerie, puzzle-box tension")
+        .replace(/^stays close to your anchor era/i, "Stays close to your anchor era")
+        .replace(/^matches the era your anchors point toward/i, "Matches the era your anchors point toward")
+        .replace(/^keeps the language close to your anchors/i, "Keeps the language close to your anchors")
+        .replace(/^matches the language pattern in your anchors/i, "Matches the language pattern in your anchors")
+        .replace(/^keeps room for a bigger movie night/i, "Keeps room for a bigger movie night")
+        .replace(/^adds a less obvious pick to the mix/i, "Adds a less obvious pick to the mix")
+        .replace(/^matches the movie type your anchors suggest:\s*/i, "Matches your movie-type pattern: ")
+        .replace(/^fits your movie-type preference:\s*/i, "Fits your movie-type preference: ")
+        .replace(/^fits your zeitgeist preference:\s*/i, "Fits your zeitgeist preference: ")
+        .replace(/;\s*fits your zeitgeist preference:\s*/i, "; zeitgeist: ")
+        .replace(/^has current zeitgeist pull/i, "Has current zeitgeist pull")
+        .replace(/^has mainstream zeitgeist appeal/i, "Has mainstream zeitgeist appeal")
+        .replace(/^has sleeper-pick discovery energy/i, "Has sleeper-pick discovery energy")
+        .replace(/^carries classic\/retro appeal/i, "Carries classic/retro appeal")
+        .replace(/^sits in the modern-classic window/i, "Sits in the modern-classic window")
+        .replace(/^balanced by rating, popularity, and your broad preferences/i, "Balanced by rating, popularity, and your profile");
+    }
+
+    function riskClass(label) {
+      const text = String(label || "").toLowerCase();
+      if (text.includes("safe")) return "safe";
+      if (text.includes("wild")) return "wild";
+      return "";
+    }
+
     function card(m) {
+      rememberMovie(m);
+      const saved = watchlist.has(String(m.id));
+      const matchBadge = m.match_score ? `<div class="match-badge">${m.match_score}%</div>` : "";
+      const matchPanel = m.match_score ? `
+        <div class="match-panel">
+          <div class="match-topline">
+            <span class="match-label">Why it fits</span>
+            ${m.risk_level ? `<span class="risk-level ${riskClass(m.risk_level)}">${m.risk_level}</span>` : ""}
+          </div>
+          ${m.match_reasons?.length ? `<div class="match-reasons">${m.match_reasons.slice(0, 3).map(r => `<span>${reasonText(r)}</span>`).join("")}</div>` : ""}
+        </div>` : "";
       return `
         <div class="card" data-id="${m.id}">
-          <div class="poster-wrap">${posterHTML(m)}${ratingBadge(m)}</div>
+          <div class="poster-wrap">
+            ${posterHTML(m)}${ratingBadge(m)}${matchBadge}
+            <button class="watch-btn ${saved ? "saved" : ""}" data-watch-id="${m.id}" title="${saved ? "Remove from watchlist" : "Add to watchlist"}">${saved ? "✓" : "+"}</button>
+          </div>
           <div class="body">
+            ${matchPanel}
             <p class="title">${m.title}</p>
             <span class="year">${m.release_year ?? "—"}</span>
             <div class="genres">${(m.genres || []).join(" • ")}</div>
@@ -460,6 +905,8 @@
     const movieCache = new Map();
     const extrasCache = new Map();
     const similarCache = new Map();
+    const providerCache = new Map();
+    const personCache = new Map();
     const prefetchTimers = new Map();
     let activeMovieId = null;
 
@@ -502,7 +949,7 @@
         ? `<img src="${p.profile_url}" alt="${p.name}" loading="lazy" />`
         : `<div class="profile-fallback">?</div>`;
       return `
-        <div class="person">
+        <div class="person" ${p.id ? `data-person-id="${p.id}"` : ""}>
           ${image}
           <div class="pbody">
             <div class="name">${p.name}</div>
@@ -521,9 +968,32 @@
       return rows ? `<div class="detail-section"><h3>Crew</h3><div class="crew-list">${rows}</div></div>` : "";
     }
 
+    function providerSection(providers, loading) {
+      if (loading) return `<div class="detail-section"><h3>Where to watch in India</h3><div class="modal-loading">Loading availability...</div></div>`;
+      if (!providers || (!providers.flatrate?.length && !providers.rent?.length && !providers.buy?.length)) return "";
+      const group = (label, rows) => rows?.length
+        ? `<div class="provider-group"><b>${label}</b><div class="provider-row">${rows.map(p => `<span class="provider">${p.logo_url ? `<img src="${p.logo_url}" alt="">` : ""}${p.name}</span>`).join("")}</div></div>`
+        : "";
+      const body = [group("Stream", providers.flatrate), group("Rent", providers.rent), group("Buy", providers.buy)].join("");
+      return `<div class="detail-section"><h3>Where to watch in India</h3>${body}${providers.link ? `<a class="link-button secondary" href="${providers.link}" target="_blank" rel="noreferrer">View all options</a>` : ""}</div>`;
+    }
+
+    function recommendationGroupsSection(groups, loading) {
+      if (loading) return `<div class="similar"><h3>More like this</h3><div class="modal-loading">Loading recommendations...</div></div>`;
+      const entries = groups ? Object.values(groups).filter(g => g.results?.length) : [];
+      if (!entries.length) return `<div class="similar"><h3>More like this</h3><p style="color:var(--text-faint)">No similar titles found.</p></div>`;
+      return `<div class="similar"><h3>More like this</h3>${entries.map(group => `
+        <div class="rec-group">
+          <h4>${group.label}</h4>
+          <div class="similar-row">${group.results.map(miniCard).join("")}</div>
+        </div>`).join("")}</div>`;
+    }
+
     function renderModal(m, similar = null, opts = {}) {
       const extrasLoading = opts.extrasLoading ?? false;
       const similarLoading = opts.similarLoading ?? false;
+      const providersLoading = opts.providersLoading ?? false;
+      const providers = opts.providers ?? null;
       const lang = m.original_language ? m.original_language.toUpperCase() : "—";
       const runtime = m.runtime ? `${m.runtime} min` : "Runtime n/a";
       const votes = m.vote_count ? `${m.vote_count.toLocaleString()} votes` : "";
@@ -537,6 +1007,7 @@
         fact("Studios", joinList(m.production_companies, 4)),
       ].join("");
       const actionLinks = [
+        `<button class="link-button secondary" data-watch-id="${m.id}" type="button">${watchlist.has(String(m.id)) ? "In watchlist" : "Add to watchlist"}</button>`,
         m.trailer_url ? `<a class="link-button" href="${m.trailer_url}" target="_blank" rel="noreferrer">Watch trailer</a>` : "",
         m.homepage ? `<a class="link-button secondary" href="${m.homepage}" target="_blank" rel="noreferrer">Official site</a>` : "",
       ].filter(Boolean).join("");
@@ -548,11 +1019,6 @@
       const detailsSection = facts
         ? `<div class="detail-section"><h3>Details</h3><div class="facts">${facts}</div></div>`
         : "";
-      const similarRow = similarLoading
-        ? `<div class="modal-loading">Loading recommendations...</div>`
-        : similar?.length
-        ? similar.map(miniCard).join("")
-        : `<p style="color:var(--text-faint)">No similar titles found.</p>`;
       $("modalContent").innerHTML = `
         <button class="modal-close" aria-label="Close">×</button>
         <div class="modal-hero">
@@ -577,10 +1043,8 @@
         ${castSection}
         ${extrasLoading && !m.crew ? `<div class="detail-section"><h3>Crew</h3><div class="modal-loading">Loading crew...</div></div>` : crewSection(m.crew)}
         ${detailsSection}
-        <div class="similar">
-          <h3>More like this</h3>
-          <div class="similar-row">${similarRow}</div>
-        </div>`;
+        ${providerSection(providers, providersLoading)}
+        ${recommendationGroupsSection(similar, similarLoading)}`;
     }
 
     async function openDetail(id) {
@@ -589,10 +1053,12 @@
       let movie = await fetchCached(movieCache, key, `/api/movies/${id}`);
       if (activeMovieId !== String(id)) return;
       let similar = null;
+      let providers = null;
       let extrasLoading = true;
       let similarLoading = true;
+      let providersLoading = true;
       const rerender = () => {
-        if (activeMovieId === key) renderModal(movie, similar, { extrasLoading, similarLoading });
+        if (activeMovieId === key) renderModal(movie, similar, { extrasLoading, similarLoading, providersLoading, providers });
       };
       rerender();
       modal.classList.add("open");
@@ -611,15 +1077,27 @@
           rerender();
         });
 
-      fetchCached(similarCache, key, `/api/movies/${id}/similar?limit=8`)
-        .then(sim => {
+      fetchCached(providerCache, key, `/api/movies/${id}/watch-providers?region=IN`)
+        .then(data => {
           if (activeMovieId !== key) return;
-          similar = sim.results || [];
+          providers = data;
+          providersLoading = false;
+          rerender();
+        })
+        .catch(() => {
+          providersLoading = false;
+          rerender();
+        });
+
+      fetchCached(similarCache, key, `/api/movies/${id}/recommendations?limit=8`)
+        .then(data => {
+          if (activeMovieId !== key) return;
+          similar = data.groups || {};
           similarLoading = false;
           rerender();
         })
         .catch(() => {
-          similar = [];
+          similar = {};
           similarLoading = false;
           rerender();
         });
@@ -629,6 +1107,86 @@
       const key = String(id);
       fetchCached(movieCache, key, `/api/movies/${key}`).catch(() => movieCache.delete(key));
       fetchCached(extrasCache, key, `/api/movies/${key}/extras`).catch(() => extrasCache.delete(key));
+      fetchCached(providerCache, key, `/api/movies/${key}/watch-providers?region=IN`).catch(() => providerCache.delete(key));
+    }
+
+    function toggleWatch(id) {
+      const key = String(id);
+      if (watchlist.has(key)) {
+        watchlist.delete(key);
+      } else {
+        watchlist.add(key);
+        const cached = movieCache.get(key);
+        Promise.resolve(cached).then(m => { if (m) { watchlistMovies[key] = m; saveWatchlist(); } });
+      }
+      saveWatchlist();
+      search();
+      if (activeMovieId === key) {
+        Promise.resolve(movieCache.get(key)).then(m => { if (m) renderModal(m, {}, {}); });
+      }
+    }
+
+    function showSkeletons() {
+      $("results").innerHTML = Array.from({ length: 12 }, () => `
+        <div class="skeleton-card">
+          <div class="skeleton-poster"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+        </div>`).join("");
+    }
+
+    function emptyHTML(message) {
+      return `<div class="empty">${message}<div class="empty-actions">
+        <button id="emptyRetry" type="button">Retry</button>
+        <button id="emptyReset" type="button">Reset filters</button>
+        <button class="secondary-button" id="emptyPopular" type="button">Popular movies</button>
+      </div></div>`;
+    }
+
+    function tasteReady() {
+      return (tasteProfile.liked_movies || []).length || (tasteProfile.vibes || []).length;
+    }
+
+    async function loadTasteRecommendations() {
+      $("meta").textContent = "Building your taste matches...";
+      showSkeletons();
+      $("pager").innerHTML = "";
+      $("collections").style.display = "none";
+      setUrlState();
+      if (!tasteReady()) {
+        $("meta").innerHTML = "For You <span>(profile needed)</span>";
+        $("results").innerHTML = emptyHTML("Add at least one movie you like or choose a vibe to get personalized matches.");
+        return;
+      }
+      const res = await fetch("/api/recommendations/personalized", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profilePayload()),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        $("meta").innerHTML = "For You <span>(error)</span>";
+        $("results").innerHTML = emptyHTML(err.detail || "Could not build personalized recommendations right now.");
+        return;
+      }
+      const data = await res.json();
+      const anchors = data.profile_summary?.anchors?.length
+        ? ` based on ${data.profile_summary.anchors.slice(0, 3).join(", ")}`
+        : "";
+      $("meta").innerHTML = `For You <span>(${data.results.length} matches${anchors})</span>`;
+      $("results").innerHTML = data.results.length
+        ? data.results.map(card).join("")
+        : emptyHTML("No personalized matches found. Try a broader language or rating tolerance.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function openPerson(personId) {
+      const person = await fetchCached(personCache, personId, `/api/people/${personId}/movies?limit=24`);
+      $("meta").innerHTML = `${person.name} <span>(${person.movies.length} movies)</span>`;
+      $("results").innerHTML = person.movies.length ? person.movies.map(card).join("") : emptyHTML("No movies found for this person.");
+      $("pager").innerHTML = "";
+      closeModal();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     function closeModal() {
@@ -638,6 +1196,26 @@
 
     // One delegated handler covers result cards and the modal's mini cards.
     document.addEventListener("click", (e) => {
+      const watch = e.target.closest("[data-watch-id]");
+      if (watch) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleWatch(watch.dataset.watchId);
+        return;
+      }
+      const person = e.target.closest("[data-person-id]");
+      if (person) {
+        openPerson(person.dataset.personId);
+        return;
+      }
+      if (e.target.id === "emptyReset" || e.target.id === "emptyPopular") {
+        resetAllFilters();
+        return;
+      }
+      if (e.target.id === "emptyRetry") {
+        search();
+        return;
+      }
       const tile = e.target.closest("[data-id]");
       if (tile) { openDetail(tile.dataset.id); return; }
       if (e.target.classList.contains("modal-close") || e.target === modal) closeModal();
@@ -686,6 +1264,7 @@
         year: ["Newest first", "Oldest first"],
         rating: ["Highest first", "Lowest first"],
         popularity: ["Most popular", "Least popular"],
+        best_match: ["Best first", "Best last"],
       }[$("sortBy").value] || ["High to low", "Low to high"];
       $("sortDir").options[0].textContent = labels[0];
       $("sortDir").options[1].textContent = labels[1];
@@ -703,33 +1282,210 @@
       search();
     }
 
+    function resetAllFilters() {
+      ["movieSearch", "yearMin", "yearMax", "ratingMin", "runtimeMax"].forEach(id => { if ($(id)) $(id).value = ""; });
+      $("genres").value = "";
+      $("language").value = "";
+      $("sortBy").value = "best_match";
+      $("sortDir").value = "desc";
+      activeCollection = null;
+      watchlistOnly = false;
+      tasteMode = false;
+      $("tastePanel").classList.remove("open");
+      $("collections")?.querySelectorAll(".coll-chip").forEach(chip => chip.classList.toggle("active", !chip.dataset.slug));
+      resetAndSearch();
+    }
+
     async function search() {
+      if (tasteMode) {
+        await loadTasteRecommendations();
+        return;
+      }
       $("meta").textContent = "Searching…";
-      const data = await fetch("/api/movies?" + buildQuery()).then(r => r.json());
+      showSkeletons();
+      saveWatchlist();
+      setUrlState();
+      $("collections").style.display = "";
+      if (watchlistOnly) {
+        const movies = [...watchlist].map(id => watchlistMovies[id]).filter(Boolean);
+        $("meta").innerHTML = `Watchlist <span>(${movies.length})</span>`;
+        $("results").innerHTML = movies.length ? movies.map(card).join("") : emptyHTML("Your watchlist is empty.");
+        $("pager").innerHTML = "";
+        return;
+      }
+      let data;
+      try {
+        const res = await fetch("/api/movies?" + buildQuery());
+        data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          $("meta").innerHTML = "Results <span>(API unavailable)</span>";
+          $("results").innerHTML = emptyHTML(data.detail || "Movie data is unavailable right now. Please try again in a moment.");
+          $("pager").innerHTML = "";
+          return;
+        }
+      } catch (err) {
+        $("meta").innerHTML = "Results <span>(offline)</span>";
+        $("results").innerHTML = emptyHTML("Could not reach the movie API. Check that the local server is running.");
+        $("pager").innerHTML = "";
+        return;
+      }
       const start = currentPage * PAGE_SIZE + 1;
       const end = currentPage * PAGE_SIZE + data.count;
       const textQuery = $("movieSearch").value.trim();
       const heading = textQuery ? `Search results for "${textQuery}"` : "Results";
+      const fallbackNote = data.fallback ? ` <span>${data.warning}</span>` : "";
       $("meta").innerHTML = data.count
-        ? `${heading} <span>(${start}-${end})</span>`
-        : `${heading} <span>(0)</span>`;
+        ? `${heading} <span>(${start}-${end})</span>${fallbackNote}`
+        : `${heading} <span>(0)</span>${fallbackNote}`;
       $("results").innerHTML = data.results.length
         ? data.results.map(card).join("")
-        : `<div class="empty">${textQuery ? "No movies found for that search." : "No movies match those filters."}</div>`;
+        : emptyHTML(textQuery ? "No movies found for that search." : "No movies match those filters.");
       renderPager(data.has_more);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
+    function enterTasteMode() {
+      tasteMode = true;
+      watchlistOnly = false;
+      currentPage = 0;
+      $("tastePanel").classList.add("open");
+      renderTasteProfile();
+      search();
+    }
+
+    function exitTasteMode() {
+      tasteMode = false;
+      $("tastePanel").classList.remove("open");
+      currentPage = 0;
+      search();
+    }
+
+    function addTasteAnchor(movie) {
+      const anchors = tasteProfile.liked_movies || [];
+      if (!anchors.some(m => String(m.id) === String(movie.id)) && anchors.length < 5) {
+        anchors.push({
+          id: movie.id,
+          title: movie.title,
+          release_year: movie.release_year,
+          poster_url: movie.poster_url,
+        });
+      }
+      tasteProfile.liked_movies = anchors;
+      $("tasteMovieSearch").value = "";
+      $("tasteSuggestions").classList.remove("open");
+      renderTasteProfile();
+    }
+
+    async function updateTasteSuggestions() {
+      const q = $("tasteMovieSearch").value.trim();
+      if (q.length < 2) {
+        $("tasteSuggestions").classList.remove("open");
+        return;
+      }
+      const data = await fetch(`/api/suggest?query=${encodeURIComponent(q)}&limit=8`).then(r => r.json()).catch(() => ({results: []}));
+      $("tasteSuggestions").innerHTML = data.results.map(s =>
+        `<div class="suggestion" data-taste-id="${s.id}" data-taste-title="${s.title}" data-taste-year="${s.release_year || ""}" data-taste-poster="${s.poster_url || ""}">
+          <span>${s.title}</span><span>${s.release_year || ""}</span>
+        </div>`
+      ).join("");
+      $("tasteSuggestions").classList.toggle("open", data.results.length > 0);
+    }
+
     $("search").addEventListener("click", resetAndSearch);
+    $("tasteToggle").addEventListener("click", enterTasteMode);
+    $("browseMode").addEventListener("click", exitTasteMode);
+    $("runTaste").addEventListener("click", enterTasteMode);
+    $("resetTaste").addEventListener("click", () => {
+      tasteProfile = {"liked_movies":[],"vibes":[],"rating_flexibility":0.35,"language_scope":"","era":"","runtime":"","movie_type":"","zeitgeist":""};
+      renderTasteProfile();
+      if (tasteMode) search();
+    });
+    $("tasteMovieSearch").addEventListener("input", () => {
+      clearTimeout(tasteSuggestionTimer);
+      tasteSuggestionTimer = setTimeout(updateTasteSuggestions, 180);
+    });
+    $("tasteSuggestions").addEventListener("click", (e) => {
+      const item = e.target.closest("[data-taste-id]");
+      if (!item) return;
+      addTasteAnchor({
+        id: Number(item.dataset.tasteId),
+        title: item.dataset.tasteTitle,
+        release_year: item.dataset.tasteYear ? Number(item.dataset.tasteYear) : null,
+        poster_url: item.dataset.tastePoster || null,
+      });
+    });
+    $("anchorList").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-remove-anchor]");
+      if (!btn) return;
+      tasteProfile.liked_movies = (tasteProfile.liked_movies || []).filter(m => String(m.id) !== String(btn.dataset.removeAnchor));
+      renderTasteProfile();
+      if (tasteMode) search();
+    });
+    document.querySelectorAll(".vibe-chip").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const vibes = new Set(tasteProfile.vibes || []);
+        vibes.has(btn.dataset.vibe) ? vibes.delete(btn.dataset.vibe) : vibes.add(btn.dataset.vibe);
+        tasteProfile.vibes = [...vibes].slice(0, 5);
+        renderTasteProfile();
+      });
+    });
+    ["ratingFlex", "tasteLanguage", "tasteEra", "tasteRuntime", "tasteType", "tasteZeitgeist"].forEach(id => {
+      $(id).addEventListener("change", () => {
+        tasteProfile.rating_flexibility = Number($("ratingFlex").value);
+        tasteProfile.language_scope = $("tasteLanguage").value;
+        tasteProfile.era = $("tasteEra").value;
+        tasteProfile.runtime = $("tasteRuntime").value;
+        tasteProfile.movie_type = $("tasteType").value;
+        tasteProfile.zeitgeist = $("tasteZeitgeist").value;
+        renderTasteProfile();
+      });
+    });
+    $("advancedToggle").addEventListener("click", () => $("advancedPanel").classList.toggle("open"));
+    $("watchlistToggle").addEventListener("click", () => {
+      watchlistOnly = !watchlistOnly;
+      currentPage = 0;
+      search();
+    });
+    $("clearFilters").addEventListener("click", resetAllFilters);
     $("movieSearch").addEventListener("keydown", (e) => {
       if (e.key === "Enter") resetAndSearch();
     });
+    $("movieSearch").addEventListener("input", () => {
+      clearTimeout(suggestionTimer);
+      const q = $("movieSearch").value.trim();
+      if (q.length < 2) {
+        $("suggestions").classList.remove("open");
+        return;
+      }
+      suggestionTimer = setTimeout(async () => {
+        const data = await fetch(`/api/suggest?query=${encodeURIComponent(q)}`).then(r => r.json()).catch(() => ({results: []}));
+        $("suggestions").innerHTML = data.results.map(s => `<div class="suggestion" data-suggest-title="${s.title}"><span>${s.title}</span><span>${s.release_year || ""}</span></div>`).join("");
+        $("suggestions").classList.toggle("open", data.results.length > 0);
+      }, 180);
+    });
+    $("suggestions").addEventListener("click", (e) => {
+      const item = e.target.closest("[data-suggest-title]");
+      if (!item) return;
+      $("movieSearch").value = item.dataset.suggestTitle;
+      $("suggestions").classList.remove("open");
+      resetAndSearch();
+    });
     $("genres").addEventListener("change", resetAndSearch);
+    $("yearMin").addEventListener("change", resetAndSearch);
+    $("yearMax").addEventListener("change", resetAndSearch);
+    $("ratingMin").addEventListener("change", resetAndSearch);
+    $("runtimeMax").addEventListener("change", resetAndSearch);
+    $("language").addEventListener("change", resetAndSearch);
     $("sortBy").addEventListener("change", resetAndSearch);
     $("sortDir").addEventListener("change", resetAndSearch);
-    syncSortOrderLabels();
-    loadCollections();
-    loadGenres().then(search);
+    loadGenres().then(() => {
+      applyUrlState();
+      syncSortOrderLabels();
+      saveWatchlist();
+      renderTasteProfile();
+      loadCollections();
+      search();
+    });
 
     // --- AI companion chat ---
     const chatHistory = [];           // {role, content} text turns only
@@ -746,10 +1502,37 @@
         .replace(/(^|\n)\s*[\*\-]\s+/g, "$1• ");
     }
 
+    function renderChatMarkdown(text) {
+      const esc = text
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const inline = (s) => s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      const blocks = [];
+      let list = [];
+      const flushList = () => {
+        if (list.length) {
+          blocks.push(`<ul>${list.map(item => `<li>${inline(item)}</li>`).join("")}</ul>`);
+          list = [];
+        }
+      };
+      for (const rawLine of esc.split(/\n+/)) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const bullet = line.match(/^[-*]\s+(.+)$/);
+        if (bullet) {
+          list.push(bullet[1]);
+        } else {
+          flushList();
+          blocks.push(`<p>${inline(line)}</p>`);
+        }
+      }
+      flushList();
+      return blocks.join("");
+    }
+
     function addMsg(text, cls) {
       const d = document.createElement("div");
       d.className = "msg " + cls;
-      if (cls.startsWith("bot")) d.innerHTML = renderMarkdown(text);
+      if (cls.startsWith("bot")) d.innerHTML = renderChatMarkdown(text);
       else d.textContent = text;
       chatLog.appendChild(d);
       scrollChat();
@@ -763,6 +1546,18 @@
       g.innerHTML = movies.slice(0, 9).map(miniCard).join("");
       chatLog.appendChild(g);
       scrollChat();
+    }
+
+    function chatContext() {
+      return {
+        search: $("movieSearch").value.trim(),
+        genre: $("genres").selectedOptions[0]?.textContent,
+        collection: activeCollection,
+        year_min: $("yearMin").value,
+        year_max: $("yearMax").value,
+        rating_min: $("ratingMin").value,
+        sort_by: $("sortBy").value,
+      };
     }
 
     $("chatFab").addEventListener("click", () => {
@@ -792,7 +1587,7 @@
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: chatHistory }),
+          body: JSON.stringify({ messages: chatHistory, context: chatContext() }),
         });
         typing.remove();
         if (!res.ok) {

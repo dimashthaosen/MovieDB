@@ -52,25 +52,41 @@ def get_movies(
     language: str | None = None,
     runtime_max: int | None = None,
     collection: str | None = Query(default=None, description="curated sub-genre slug, e.g. 'crime-noir'"),
-    sort_by: str = Query(default="popularity", pattern="^(rating|popularity|year|title|runtime)$"),
+    sort_by: str = Query(default="popularity", pattern="^(rating|popularity|year|title|runtime|best_match)$"),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
     """Filtered movie search. Every parameter is optional."""
     fetch_limit = limit + 1
-    if query and query.strip():
-        results = queries.search_movie_titles(query, limit=fetch_limit, offset=offset)
-    else:
-        keyword_ids = queries.keyword_ids_for_collection(collection) if collection else None
-        results = queries.search_movies(
-            genres=genres, genre_match=genre_match,
+    using_fallback = False
+    try:
+        if query and query.strip():
+            results = queries.search_movie_titles(query, limit=fetch_limit, offset=offset)
+        else:
+            keyword_ids = queries.keyword_ids_for_collection(collection) if collection else None
+            results = queries.search_movies(
+                genres=genres, genre_match=genre_match,
+                year_min=year_min, year_max=year_max, rating_min=rating_min,
+                language=language, runtime_max=runtime_max, keyword_ids=keyword_ids,
+                sort_by=sort_by, sort_dir=sort_dir, limit=fetch_limit, offset=offset,
+            )
+    except tmdb.TMDbError:
+        using_fallback = True
+        results = queries.fallback_movies(
+            query=query, collection=collection, genres=genres,
             year_min=year_min, year_max=year_max, rating_min=rating_min,
-            language=language, runtime_max=runtime_max, keyword_ids=keyword_ids,
+            language=language, runtime_max=runtime_max,
             sort_by=sort_by, sort_dir=sort_dir, limit=fetch_limit, offset=offset,
         )
     has_more = len(results) > limit
-    return {"count": min(len(results), limit), "has_more": has_more, "results": results[:limit]}
+    return {
+        "count": min(len(results), limit),
+        "has_more": has_more,
+        "results": results[:limit],
+        "fallback": using_fallback,
+        "warning": "TMDb is temporarily unavailable, showing offline fallback results." if using_fallback else None,
+    }
 
 
 @app.get("/api/movies/{movie_id}")
@@ -99,6 +115,39 @@ def get_similar(movie_id: int, limit: int = Query(default=12, ge=1, le=50)):
     return {"results": queries.similar_movies(movie_id, limit=limit)}
 
 
+@app.get("/api/movies/{movie_id}/recommendations")
+def get_recommendation_groups(movie_id: int, limit: int = Query(default=8, ge=1, le=20)):
+    groups = queries.recommendation_groups(movie_id, limit=limit)
+    if groups is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    return {"groups": groups}
+
+
+@app.get("/api/movies/{movie_id}/watch-providers")
+def get_watch_providers(movie_id: int, region: str = Query(default="IN", min_length=2, max_length=2)):
+    if queries.get_movie(movie_id) is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    return queries.watch_providers(movie_id, region=region)
+
+
+@app.get("/api/people")
+def search_people(query: str, limit: int = Query(default=6, ge=1, le=12)):
+    return {"results": queries.search_people(query, limit=limit)}
+
+
+@app.get("/api/people/{person_id}/movies")
+def get_person_movies(person_id: int, limit: int = Query(default=24, ge=1, le=50)):
+    person = queries.person_movies(person_id, limit=limit)
+    if person is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return person
+
+
+@app.get("/api/suggest")
+def suggest_titles(query: str, limit: int = Query(default=6, ge=1, le=12)):
+    return {"results": queries.suggest_titles(query, limit=limit)}
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -106,6 +155,26 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
+    context: dict | None = None
+
+
+class TasteProfileRequest(BaseModel):
+    liked_movie_ids: list[int | None] = []
+    vibes: list[str] = []
+    rating_flexibility: float = 0.35
+    language_scope: str | None = None
+    era: str | None = None
+    runtime: str | None = None
+    movie_type: str | None = None
+    zeitgeist: str | None = None
+    limit: int = 24
+
+
+@app.post("/api/recommendations/personalized")
+def personalized_recommendations(req: TasteProfileRequest):
+    profile = req.dict()
+    limit = max(1, min(req.limit, 50))
+    return queries.personalized_recommendations(profile, limit=limit)
 
 
 @app.post("/api/chat")
@@ -113,7 +182,7 @@ def chat(req: ChatRequest):
     """AI companion: natural-language movie recommendations grounded in the DB."""
     history = [{"role": m.role, "content": m.content} for m in req.messages]
     try:
-        return companion.chat(history)
+        return companion.chat(history, context=req.context)
     except RuntimeError as e:  # missing API key
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:  # upstream / network failure
