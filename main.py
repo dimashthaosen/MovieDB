@@ -9,14 +9,17 @@ Interactive API docs are at http://127.0.0.1:8000/docs
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+import psycopg
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import auth
 import companion
 import queries
 import tmdb
+import userdb
 
 app = FastAPI(title="Movie Recommendation App")
 
@@ -25,6 +28,12 @@ app = FastAPI(title="Movie Recommendation App")
 async def _tmdb_error(request, exc: tmdb.TMDbError):
     """Surface TMDb outages / missing key as a clean 502 instead of a 500."""
     return JSONResponse(status_code=502, content={"detail": f"TMDb data unavailable: {exc}"})
+
+
+@app.exception_handler(psycopg.Error)
+async def _db_error(request, exc: psycopg.Error):
+    """Database hiccup -> clean 503 instead of a 500."""
+    return JSONResponse(status_code=503, content={"detail": "Account storage is unavailable right now."})
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -187,6 +196,78 @@ def chat(req: ChatRequest):
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:  # upstream / network failure
         raise HTTPException(status_code=502, detail=f"Companion error: {type(e).__name__}")
+
+
+@app.get("/api/config")
+def get_config():
+    """Public flags the frontend needs at boot (e.g. whether accounts are on)."""
+    return {"accounts_enabled": userdb.configured()}
+
+
+# ---------------- Accounts + saved taste profiles ----------------
+class Credentials(BaseModel):
+    email: str
+    password: str
+
+
+class ProfileBody(BaseModel):
+    profile: dict
+
+
+def _require_storage() -> None:
+    if not userdb.configured():
+        raise HTTPException(status_code=503, detail="Accounts aren't configured on this deployment.")
+
+
+def current_user(authorization: str = Header(default="")) -> dict:
+    token = authorization[7:].strip() if authorization.lower().startswith("bearer ") else ""
+    if not token:
+        raise HTTPException(status_code=401, detail="Please sign in.")
+    try:
+        payload = auth.decode_token(token)
+    except auth.jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Your session expired — sign in again.")
+    return {"id": int(payload["sub"]), "email": payload["email"]}
+
+
+@app.post("/api/auth/signup")
+def signup(body: Credentials):
+    _require_storage()
+    email = body.email.strip()
+    if "@" not in email or "." not in email or len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="Enter a valid email and a password of at least 6 characters.")
+    try:
+        user = userdb.create_user(email, body.password)
+    except userdb.EmailTaken:
+        raise HTTPException(status_code=409, detail="That email is already registered. Try logging in.")
+    return {"token": auth.make_token(user), "email": user["email"]}
+
+
+@app.post("/api/auth/login")
+def login(body: Credentials):
+    _require_storage()
+    user = userdb.authenticate(body.email, body.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Wrong email or password.")
+    return {"token": auth.make_token(user), "email": user["email"]}
+
+
+@app.get("/api/auth/me")
+def whoami(user=Depends(current_user)):
+    return {"email": user["email"]}
+
+
+@app.get("/api/taste-profile")
+def get_taste_profile(user=Depends(current_user)):
+    _require_storage()
+    return {"profile": userdb.get_profile(user["id"])}
+
+
+@app.put("/api/taste-profile")
+def put_taste_profile(body: ProfileBody, user=Depends(current_user)):
+    _require_storage()
+    userdb.save_profile(user["id"], body.profile)
+    return {"ok": True}
 
 
 @app.get("/")
