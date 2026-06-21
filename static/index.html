@@ -279,6 +279,8 @@
       .fab { bottom:18px; right:18px; }
       /* bigger tap targets */
       .ctl, .genre-trigger, .reset-btn, .taste-btn, .chat-form input, .chat-form button { height:44px; }
+      /* 16px inputs stop iOS auto-zoom on focus (e.g. when the chat keyboard opens) */
+      .search-wrap input, .ctl, select.ctl, .chat-form input, .anchor-picker input, .taste-field input, .taste-field select { font-size:16px; }
     }
 
     /* ---- Small phone ---- */
@@ -286,6 +288,11 @@
       .card-title { font-size:15px; }
       .card-sub { font-size:12.5px; }
       .grid { gap:14px 10px; }
+    }
+
+    /* Any touch device (incl. tablets >600px): >=16px inputs prevent iOS focus auto-zoom. */
+    @media (pointer: coarse) {
+      .search-wrap input, .ctl, select.ctl, .chat-form input, .anchor-picker input, .taste-field input, .taste-field select { font-size:16px; }
     }
   </style>
 </head>
