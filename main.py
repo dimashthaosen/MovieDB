@@ -270,6 +270,32 @@ def put_taste_profile(body: ProfileBody, user=Depends(current_user)):
     return {"ok": True}
 
 
+class FavoriteBody(BaseModel):
+    movie: dict
+
+
+@app.get("/api/favorites")
+def get_favorites(user=Depends(current_user)):
+    _require_storage()
+    return {"results": userdb.list_favorites(user["id"])}
+
+
+@app.post("/api/favorites")
+def add_favorite(body: FavoriteBody, user=Depends(current_user)):
+    _require_storage()
+    if not body.movie.get("id"):
+        raise HTTPException(status_code=400, detail="movie.id is required")
+    userdb.add_favorite(user["id"], body.movie)
+    return {"ok": True}
+
+
+@app.delete("/api/favorites/{movie_id}")
+def delete_favorite(movie_id: int, user=Depends(current_user)):
+    _require_storage()
+    userdb.remove_favorite(user["id"], movie_id)
+    return {"ok": True}
+
+
 @app.get("/")
 def index():
     return FileResponse(STATIC_DIR / "index.html")

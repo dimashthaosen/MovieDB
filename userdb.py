@@ -11,8 +11,26 @@ import bcrypt
 import psycopg
 from psycopg.types.json import Jsonb
 
-# Vercel Postgres exposes POSTGRES_URL; fall back to the generic DATABASE_URL.
-DATABASE_URL = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
+def _resolve_database_url():
+    """Find the Postgres connection string under whatever name the host used.
+
+    Vercel/Neon name it after the prefix chosen when connecting the database
+    (e.g. POSTGRES_URL, STORAGE_URL, DATABASE_URL). As a last resort we scan the
+    environment for any value that looks like a Postgres URL, so it works no
+    matter which prefix was picked in the Vercel dialog.
+    """
+    for name in ("POSTGRES_URL", "DATABASE_URL", "STORAGE_URL", "POSTGRES_PRISMA_URL",
+                 "STORAGE_POSTGRES_URL", "DATABASE_POSTGRES_URL", "POSTGRES_URL_NON_POOLING"):
+        value = os.getenv(name)
+        if value:
+            return value
+    for value in os.environ.values():
+        if isinstance(value, str) and value.startswith(("postgres://", "postgresql://")):
+            return value
+    return None
+
+
+DATABASE_URL = _resolve_database_url()
 
 STATEMENTS = [
     """CREATE TABLE IF NOT EXISTS users (
@@ -25,6 +43,13 @@ STATEMENTS = [
         user_id    integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         profile    jsonb NOT NULL,
         updated_at timestamptz DEFAULT now()
+    )""",
+    """CREATE TABLE IF NOT EXISTS favorites (
+        user_id  integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        movie_id integer NOT NULL,
+        movie    jsonb NOT NULL,
+        added_at timestamptz DEFAULT now(),
+        PRIMARY KEY (user_id, movie_id)
     )""",
 ]
 
@@ -110,4 +135,33 @@ def save_profile(user_id: int, profile: dict) -> None:
             "VALUES (%s, %s, now()) "
             "ON CONFLICT (user_id) DO UPDATE SET profile = EXCLUDED.profile, updated_at = now()",
             (user_id, Jsonb(profile)),
+        )
+
+
+def list_favorites(user_id: int) -> list[dict]:
+    init_db()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT movie FROM favorites WHERE user_id = %s ORDER BY added_at DESC",
+            (user_id,),
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
+def add_favorite(user_id: int, movie: dict) -> None:
+    init_db()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO favorites (user_id, movie_id, movie) VALUES (%s, %s, %s) "
+            "ON CONFLICT (user_id, movie_id) DO UPDATE SET movie = EXCLUDED.movie",
+            (user_id, int(movie["id"]), Jsonb(movie)),
+        )
+
+
+def remove_favorite(user_id: int, movie_id: int) -> None:
+    init_db()
+    with _connect() as conn:
+        conn.execute(
+            "DELETE FROM favorites WHERE user_id = %s AND movie_id = %s",
+            (user_id, movie_id),
         )

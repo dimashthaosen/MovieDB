@@ -139,6 +139,13 @@
     .empty .msg { font-size:16px; font-weight:600; }
     .empty button { margin-top:16px; background:var(--gold); color:#000; border:none; border-radius:9px; font-family:inherit; font-size:13px; font-weight:800; padding:10px 20px; cursor:pointer; }
 
+    /* ---- Favorite (♥) button ---- */
+    .fav-btn { position:absolute; bottom:10px; right:10px; z-index:2; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,.55); backdrop-filter:blur(3px); border:1px solid rgba(255,255,255,.18); color:rgba(255,255,255,.9); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform .12s ease; }
+    .fav-btn:hover { transform:scale(1.12); }
+    .fav-btn.on { color:var(--gold); border-color:rgba(245,197,24,.6); }
+    .list-btn { position:static; width:auto; height:38px; border-radius:9px; padding:0 16px; background:#262626; border:1px solid rgba(255,255,255,.1); color:var(--text); font-family:inherit; font-size:13px; font-weight:800; cursor:pointer; }
+    .list-btn.on { color:var(--gold); border-color:rgba(245,197,24,.5); }
+
     /* ---- Detail modal ---- */
     .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.84); z-index:50; display:none; align-items:flex-start; justify-content:center; padding:48px 16px; overflow-y:auto; backdrop-filter:blur(4px); }
     .modal-backdrop.open { display:flex; }
@@ -518,7 +525,10 @@
       modalId: null,
       chatOpen: false, chatMessages: [], typing: false,
       user: null, accountsEnabled: false,
+      favorites: new Set(), favoritesList: [], viewingList: false,
     };
+    const favCandidates = new Map();
+    const favSnapshot = (m) => ({ id: m.id, title: m.title, release_year: m.release_year, rating: m.rating, poster_url: m.poster_url, genres: m.genres || [], runtime: m.runtime });
     const movieCache = new Map();
     const extrasCache = new Map();
     const providerCache = new Map();
@@ -595,9 +605,10 @@
     }
 
     function visibleMovies() {
+      const source = state.viewingList ? state.favoritesList : state.results;
       const q = state.query.trim().toLowerCase();
-      if (!q) return state.results;
-      return state.results.filter((m) => (m.title || "").toLowerCase().includes(q));
+      if (!q) return source;
+      return source.filter((m) => (m.title || "").toLowerCase().includes(q));
     }
 
     let anchorTimer = null;
@@ -679,6 +690,10 @@
       const { bg, img } = posterLayer(m);
       const sub = m.release_year ? esc(m.release_year) + (m.runtime ? " · " + m.runtime + " min" : "") : (m.runtime ? m.runtime + " min" : "—");
       const top = (m.genres && m.genres[0]) ? esc(m.genres[0]) : "";
+      favCandidates.set(m.id, favSnapshot(m));
+      const fav = state.user
+        ? `<button class="fav-btn ${state.favorites.has(m.id) ? "on" : ""}" data-fav="${m.id}" aria-label="Save to your list" title="Save to your list">${state.favorites.has(m.id) ? "♥" : "♡"}</button>`
+        : "";
       const match = m.match_score
         ? `<div class="match-panel"><div class="match-score">${esc(m.match_score)}% taste match${m.risk_level ? ` · ${esc(m.risk_level)}` : ""}</div><ul>${(m.match_reasons || []).slice(0, 3).map(r => `<li>${esc(reasonText(r))}</li>`).join("")}</ul></div>`
         : "";
@@ -689,6 +704,7 @@
             <div class="scrim"></div>
             <div class="badge"><span class="star">&#9733;</span>${ratingText(m.rating)}</div>
             <div class="topgenre">${top}</div>
+            ${fav}
           </div>
           <div class="card-info">
             <div class="card-title">${esc(m.title)}</div>
@@ -700,6 +716,13 @@
 
     function renderGrid() {
       const list = visibleMovies();
+      if (state.viewingList) {
+        $("meta").innerHTML = `<span class="num">${list.length}</span><span class="lbl">in your list</span>`;
+        $("results").innerHTML = list.length
+          ? `<div class="grid">${list.map(cardHTML).join("")}</div>`
+          : `<div class="empty"><div class="ico">♡</div><div class="msg">No saved movies yet — tap the ♥ on any poster to add it.</div></div>`;
+        return;
+      }
       // meta
       const bits = [];
       if (state.activeCollection) {
@@ -834,14 +857,20 @@
 
     /* ---------------- render: collections ---------------- */
     function renderCollections() {
-      const chips = [`<button class="chip ${!state.activeCollection ? "on" : ""}" data-slug=""><span>&#127916;</span><span>All</span></button>`];
+      const chips = [];
+      if (state.user) {
+        chips.push(`<button class="chip ${state.viewingList ? "on" : ""}" data-list="1"><span>♥</span><span>My List</span><span class="cnt">${state.favoritesList.length}</span></button>`);
+      }
+      chips.push(`<button class="chip ${(!state.activeCollection && !state.viewingList) ? "on" : ""}" data-slug=""><span>&#127916;</span><span>All</span></button>`);
       for (const c of state.collections) {
-        chips.push(`<button class="chip ${state.activeCollection === c.slug ? "on" : ""}" data-slug="${esc(c.slug)}"><span>${c.emoji}</span><span>${esc(c.label)}</span><span class="cnt">${c.count ?? ""}</span></button>`);
+        chips.push(`<button class="chip ${(state.activeCollection === c.slug && !state.viewingList) ? "on" : ""}" data-slug="${esc(c.slug)}"><span>${c.emoji}</span><span>${esc(c.label)}</span><span class="cnt">${c.count ?? ""}</span></button>`);
       }
       const bar = $("collections");
       bar.innerHTML = chips.join("");
       bar.querySelectorAll(".chip").forEach((ch) =>
         ch.addEventListener("click", () => {
+          if (ch.dataset.list) { state.viewingList = true; renderCollections(); renderGrid(); return; }
+          state.viewingList = false;
           state.activeCollection = ch.dataset.slug || null;
           renderCollections(); browseFetch();
         })
@@ -1009,6 +1038,10 @@
         m.trailer_url ? `<a class="detail-link" href="${esc(m.trailer_url)}" target="_blank" rel="noreferrer">Watch trailer</a>` : "",
         m.homepage ? `<a class="detail-link secondary" href="${esc(m.homepage)}" target="_blank" rel="noreferrer">Official site</a>` : "",
       ].filter(Boolean).join("");
+      favCandidates.set(m.id, favSnapshot(m));
+      const favBtn = state.user
+        ? `<button class="list-btn fav-btn ${state.favorites.has(m.id) ? "on" : ""}" data-fav="${m.id}">${state.favorites.has(m.id) ? "♥ In your list" : "♡ Save to list"}</button>`
+        : "";
       const tagline = m.tagline ? `<p class="overview"><em>${esc(m.tagline)}</em></p>` : "";
       const cast = m.cast?.length
         ? `<div class="detail-section"><h3>Cast</h3><div class="cast-grid">${m.cast.map(personHTML).join("")}</div></div>`
@@ -1026,7 +1059,7 @@
             <div class="gchips">${(m.genres || []).map((g) => `<span>${esc(g)}</span>`).join("")}</div>
             ${tagline}
             <p class="overview">${esc(m.overview || "No overview available.")}</p>
-            ${actionLinks ? `<div class="detail-actions">${actionLinks}</div>` : ""}
+            ${(favBtn || actionLinks) ? `<div class="detail-actions">${favBtn}${actionLinks}</div>` : ""}
           </div>
         </div>
         ${cast}
@@ -1165,6 +1198,8 @@
 
     // Delegated click for any poster card / mini (grid, modal, chat) -> open detail.
     document.addEventListener("click", (e) => {
+      const favBtn = e.target.closest(".fav-btn");
+      if (favBtn) { e.preventDefault(); e.stopPropagation(); toggleFavorite(favBtn.dataset.fav); return; }
       const tile = e.target.closest("[data-id]");
       if (tile) { openModal(Number(tile.dataset.id)); return; }
       if (e.target === $("modal")) closeModal();
@@ -1220,7 +1255,11 @@
       $("loadTaste").hidden = !loggedIn;
     }
 
-    function signOut() { setToken(""); state.user = null; renderAccount(); }
+    function signOut() {
+      setToken(""); state.user = null;
+      state.favorites = new Set(); state.favoritesList = []; state.viewingList = false;
+      renderAccount(); renderCollections(); renderGrid();
+    }
 
     let authMode = "login";
     function renderAuthMode() {
@@ -1261,6 +1300,7 @@
         closeAuth();
         renderAccount();
         loadTasteProfile(true);
+        loadFavorites();
       } catch (err) {
         $("authError").textContent = "Couldn't reach the server.";
       } finally {
@@ -1307,6 +1347,54 @@
     $("saveTaste").addEventListener("click", saveTasteProfile);
     $("loadTaste").addEventListener("click", () => loadTasteProfile(false));
 
+    /* ---------------- favorites ---------------- */
+    function refreshHearts(id) {
+      const on = state.favorites.has(id);
+      document.querySelectorAll(`.fav-btn[data-fav="${id}"]`).forEach((b) => {
+        b.classList.toggle("on", on);
+        b.textContent = b.classList.contains("list-btn")
+          ? (on ? "♥ In your list" : "♡ Save to list")
+          : (on ? "♥" : "♡");
+      });
+    }
+
+    async function toggleFavorite(id) {
+      id = Number(id);
+      if (!state.user) return;
+      const wasFav = state.favorites.has(id);
+      if (wasFav) {
+        state.favorites.delete(id);
+        state.favoritesList = state.favoritesList.filter((m) => m.id !== id);
+      } else {
+        state.favorites.add(id);
+        const snap = favCandidates.get(id);
+        if (snap && !state.favoritesList.some((m) => m.id === id)) state.favoritesList.unshift(snap);
+      }
+      refreshHearts(id);
+      renderCollections();
+      if (state.viewingList) renderGrid();
+      try {
+        const r = wasFav
+          ? await authedFetch(`/api/favorites/${id}`, { method: "DELETE" })
+          : await authedFetch("/api/favorites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ movie: favCandidates.get(id) || { id } }) });
+        if (r && r.status === 401) signOut();
+      } catch (e) { /* keep optimistic state */ }
+    }
+
+    async function loadFavorites() {
+      if (!state.user) { state.favorites = new Set(); state.favoritesList = []; return; }
+      try {
+        const r = await authedFetch("/api/favorites");
+        if (r.status === 401) { signOut(); return; }
+        if (!r.ok) return;
+        const data = await r.json();
+        state.favoritesList = data.results || [];
+        state.favorites = new Set(state.favoritesList.map((m) => m.id));
+        renderCollections();
+        renderGrid();
+      } catch (e) { /* ignore */ }
+    }
+
     /* ---------------- init ---------------- */
     async function init() {
       try { state.allGenres = await api("/api/genres"); } catch (e) { state.allGenres = []; }
@@ -1324,6 +1412,7 @@
       renderAccount();
       if (state.user) loadTasteProfile(true);
       await fetchMovies();
+      if (state.user) loadFavorites();
     }
     init();
   </script>
