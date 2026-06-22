@@ -115,9 +115,13 @@
     .meta { display:flex; align-items:baseline; gap:10px; padding:20px 32px 4px; }
     .meta .num { font-size:17px; font-weight:800; letter-spacing:-.01em; }
     .meta .lbl { font-size:14px; color:var(--faint); font-weight:500; }
+    .pager { display:flex; align-items:center; justify-content:center; gap:12px; padding:0 32px 80px; }
+    .pager button { height:40px; min-width:96px; border-radius:9px; border:1px solid #3a3a3a; background:#222; color:var(--text); font-family:inherit; font-size:13px; font-weight:850; cursor:pointer; }
+    .pager button:disabled { opacity:.38; cursor:not-allowed; }
+    .pager .page-label { color:var(--dim); font-size:13px; font-weight:800; min-width:78px; text-align:center; }
 
     /* ---- Poster grid ---- */
-    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:30px 22px; padding:14px 32px 80px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:30px 22px; padding:14px 32px 28px; }
     .card { cursor:pointer; min-width:0; }
     .poster { position:relative; aspect-ratio:2/3; border-radius:4px; overflow:hidden; border:1px solid rgba(255,255,255,.06); box-shadow:0 2px 8px rgba(0,0,0,.4); transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
     .card:hover .poster { transform:translateY(-4px); box-shadow:0 14px 30px rgba(0,0,0,.58); border-color:rgba(245,197,24,.42); }
@@ -470,6 +474,7 @@
   <div class="collections" id="collections"></div>
   <div class="meta" id="meta"></div>
   <div id="results"></div>
+  <div class="pager" id="pager"></div>
 
   <div class="modal-backdrop" id="modal"><div class="modal" id="modalContent"></div></div>
 
@@ -519,7 +524,7 @@
       allGenres: [], genres: [], genreMatch: "any", genreMenuOpen: false,
       yearMin: "", yearMax: "", ratingMin: "", sortBy: "popularity",
       collections: [], activeCollection: null, query: "",
-      results: [], lastCount: 0,
+      results: [], lastCount: 0, page: 0, pageSize: 50, hasMore: false,
       forYou: false, tasteLoading: false,
       taste: { liked_movies: [], anchorQuery: "", anchorSuggestions: [], anchorLoading: false, vibes: [], rating_flexibility: 0.35, language_scope: "", era: "", runtime: "", movie_type: "", zeitgeist: "" },
       modalId: null,
@@ -571,13 +576,15 @@
       const p = new URLSearchParams();
       state.genres.forEach((id) => p.append("genres", id));
       p.set("genre_match", state.genreMatch);
+      if (state.query.trim()) p.set("query", state.query.trim());
       if (state.yearMin) p.set("year_min", state.yearMin);
       if (state.yearMax) p.set("year_max", state.yearMax);
       if (state.ratingMin) p.set("rating_min", state.ratingMin);
       if (state.activeCollection) p.set("collection", state.activeCollection);
       p.set("sort_by", state.sortBy);
       p.set("sort_dir", state.sortBy === "title" ? "asc" : "desc");
-      p.set("limit", "60");
+      p.set("limit", String(state.pageSize));
+      p.set("offset", String(state.page * state.pageSize));
       return p.toString();
     }
 
@@ -591,21 +598,35 @@
         const data = await api("/api/movies?" + buildQuery());
         state.results = data.results || [];
         state.lastCount = data.count ?? state.results.length;
+        state.hasMore = !!data.has_more;
       } catch (e) {
         state.results = [];
         state.lastCount = 0;
+        state.hasMore = false;
       }
       renderGrid();
     }
 
     function browseFetch() {
       state.forYou = false;
+      state.viewingList = false;
       renderTasteControls();
       fetchMovies();
     }
 
+    function resetBrowsePage() {
+      state.page = 0;
+      state.hasMore = false;
+    }
+
+    function restartBrowseFetch() {
+      resetBrowsePage();
+      browseFetch();
+    }
+
     function visibleMovies() {
       const source = state.viewingList ? state.favoritesList : state.results;
+      if (!state.viewingList) return source;
       const q = state.query.trim().toLowerCase();
       if (!q) return source;
       return source.filter((m) => (m.title || "").toLowerCase().includes(q));
@@ -721,6 +742,7 @@
         $("results").innerHTML = list.length
           ? `<div class="grid">${list.map(cardHTML).join("")}</div>`
           : `<div class="empty"><div class="ico">♡</div><div class="msg">No saved movies yet — tap the ♥ on any poster to add it.</div></div>`;
+        renderPager();
         return;
       }
       // meta
@@ -731,9 +753,12 @@
       }
       if (state.genres.length) bits.push(genreLabelText());
       const summary = bits.length ? " · " + bits.join(" · ") : "";
+      const start = list.length ? (state.page * state.pageSize) + 1 : 0;
+      const end = (state.page * state.pageSize) + list.length;
+      const pageSummary = state.forYou ? "" : ` · ${start}-${end}${state.hasMore ? "+" : ""}`;
       $("meta").innerHTML = state.forYou
         ? `<span class="num">${list.length}</span><span class="lbl">taste matches with reasons</span>`
-        : `<span class="num">${list.length}</span><span class="lbl">titles${esc(summary)}</span>`;
+        : `<span class="num">${list.length}</span><span class="lbl">titles${esc(summary)}${esc(pageSummary)}</span>`;
 
       if (!list.length) {
         $("results").innerHTML = `
@@ -744,9 +769,31 @@
           </div>`;
         const er = $("emptyReset");
         if (er) er.addEventListener("click", resetFilters);
+        renderPager();
         return;
       }
       $("results").innerHTML = `<div class="grid">${list.map(cardHTML).join("")}</div>`;
+      renderPager();
+    }
+
+    function renderPager() {
+      if (state.forYou || state.viewingList || (!state.hasMore && state.page === 0)) {
+        $("pager").innerHTML = "";
+        return;
+      }
+      $("pager").innerHTML = `
+        <button id="prevPage" type="button" ${state.page === 0 ? "disabled" : ""}>Previous</button>
+        <span class="page-label">Page ${state.page + 1}</span>
+        <button id="nextPage" type="button" ${state.hasMore ? "" : "disabled"}>Next</button>`;
+      $("prevPage").addEventListener("click", () => goPage(state.page - 1));
+      $("nextPage").addEventListener("click", () => goPage(state.page + 1));
+    }
+
+    function goPage(page) {
+      if (page < 0 || (page > state.page && !state.hasMore)) return;
+      state.page = page;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      fetchMovies();
     }
 
     function tastePayload() {
@@ -793,11 +840,12 @@
       $("meta").innerHTML = `<span class="num">For You</span><span class="lbl">building matches</span>`;
       $("results").innerHTML = `<div class="empty"><div class="ico">&#127916;</div><div class="msg">Finding matches that fit your movie night...</div></div>`;
       try {
-        const r = await fetch("/api/recommendations/personalized", {
+        const request = {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(tastePayload()),
-        });
+        };
+        const r = getToken() ? await authedFetch("/api/recommendations/personalized", request) : await fetch("/api/recommendations/personalized", request);
         if (!r.ok) throw new Error("HTTP " + r.status);
         const data = await r.json();
         state.results = data.results || [];
@@ -841,14 +889,14 @@
         </div>`;
 
       pop.querySelectorAll(".seg button").forEach((b) =>
-        b.addEventListener("click", () => { state.genreMatch = b.dataset.m; renderGenrePopover(); fetchMovies(); })
+        b.addEventListener("click", () => { state.genreMatch = b.dataset.m; resetBrowsePage(); renderGenrePopover(); browseFetch(); })
       );
-      pop.querySelector("#clearGenres").addEventListener("click", () => { state.genres = []; renderGenrePopover(); renderGenreTrigger(); fetchMovies(); });
+      pop.querySelector("#clearGenres").addEventListener("click", () => { state.genres = []; resetBrowsePage(); renderGenrePopover(); renderGenreTrigger(); browseFetch(); });
       pop.querySelectorAll(".gpill").forEach((b) =>
         b.addEventListener("click", () => {
           const id = Number(b.dataset.gid);
           state.genres = state.genres.includes(id) ? state.genres.filter((x) => x !== id) : state.genres.concat([id]);
-          renderGenrePopover(); renderGenreTrigger(); fetchMovies();
+          resetBrowsePage(); renderGenrePopover(); renderGenreTrigger(); browseFetch();
         })
       );
       $("genreField").appendChild(ov);
@@ -872,7 +920,7 @@
           if (ch.dataset.list) { state.viewingList = true; renderCollections(); renderGrid(); return; }
           state.viewingList = false;
           state.activeCollection = ch.dataset.slug || null;
-          renderCollections(); browseFetch();
+          renderCollections(); restartBrowseFetch();
         })
       );
     }
@@ -1133,21 +1181,30 @@
     function resetFilters() {
       state.genres = []; state.genreMatch = "any"; state.yearMin = ""; state.yearMax = "";
       state.ratingMin = ""; state.sortBy = "popularity"; state.activeCollection = null; state.query = "";
+      resetBrowsePage();
       $("yearMin").value = ""; $("yearMax").value = ""; $("ratingMin").value = "";
       $("sortBy").value = "popularity"; $("search").value = "";
       renderGenreTrigger(); renderGenrePopover(); renderCollections(); browseFetch();
     }
 
-    $("search").addEventListener("input", (e) => { state.query = e.target.value; renderGrid(); });
+    $("search").addEventListener("input", (e) => {
+      state.query = e.target.value;
+      resetBrowsePage();
+      state.forYou = false;
+      state.viewingList = false;
+      renderTasteControls();
+      renderCollections();
+      scheduleFetch(300);
+    });
     $("homeLogo").addEventListener("click", () => {
       history.pushState(null, "", "/");
       window.scrollTo({ top: 0, behavior: "smooth" });
       resetFilters();
     });
-    $("yearMin").addEventListener("input", (e) => { state.yearMin = e.target.value; state.forYou = false; renderTasteControls(); scheduleFetch(350); });
-    $("yearMax").addEventListener("input", (e) => { state.yearMax = e.target.value; state.forYou = false; renderTasteControls(); scheduleFetch(350); });
-    $("ratingMin").addEventListener("input", (e) => { state.ratingMin = e.target.value; state.forYou = false; renderTasteControls(); scheduleFetch(350); });
-    $("sortBy").addEventListener("change", (e) => { state.sortBy = e.target.value; browseFetch(); });
+    $("yearMin").addEventListener("input", (e) => { state.yearMin = e.target.value; resetBrowsePage(); state.forYou = false; state.viewingList = false; renderTasteControls(); renderCollections(); scheduleFetch(350); });
+    $("yearMax").addEventListener("input", (e) => { state.yearMax = e.target.value; resetBrowsePage(); state.forYou = false; state.viewingList = false; renderTasteControls(); renderCollections(); scheduleFetch(350); });
+    $("ratingMin").addEventListener("input", (e) => { state.ratingMin = e.target.value; resetBrowsePage(); state.forYou = false; state.viewingList = false; renderTasteControls(); renderCollections(); scheduleFetch(350); });
+    $("sortBy").addEventListener("change", (e) => { state.sortBy = e.target.value; restartBrowseFetch(); });
     $("reset").addEventListener("click", resetFilters);
     $("genreTrigger").addEventListener("click", () => { state.genreMenuOpen = !state.genreMenuOpen; renderGenrePopover(); });
     $("tasteToggle").addEventListener("click", () => {
@@ -1157,7 +1214,7 @@
       else renderGrid();
     });
     $("runTaste").addEventListener("click", runTasteMatch);
-    $("clearTaste").addEventListener("click", () => { state.forYou = false; renderTasteControls(); fetchMovies(); });
+    $("clearTaste").addEventListener("click", () => { state.forYou = false; resetBrowsePage(); renderTasteControls(); fetchMovies(); });
     $("anchorSearch").addEventListener("input", (e) => {
       clearTimeout(anchorTimer);
       anchorTimer = setTimeout(() => searchAnchorMovies(e.target.value), 250);
@@ -1373,6 +1430,7 @@
       refreshHearts(id);
       renderCollections();
       if (state.viewingList) renderGrid();
+      if (state.forYou) runTasteMatch();
       try {
         const r = wasFav
           ? await authedFetch(`/api/favorites/${id}`, { method: "DELETE" })
@@ -1392,6 +1450,7 @@
         state.favorites = new Set(state.favoritesList.map((m) => m.id));
         renderCollections();
         renderGrid();
+        if (state.forYou) runTasteMatch();
       } catch (e) { /* ignore */ }
     }
 

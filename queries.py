@@ -1132,7 +1132,7 @@ def _diversify_ranked_movies(scored: list[dict], limit: int, profile: dict) -> l
 
 def personalized_recommendations(profile: dict, limit: int = 24) -> dict:
     """Score recommendations from a lightweight taste profile."""
-    liked_ids = [int(mid) for mid in profile.get("liked_movie_ids", [])[:5] if mid]
+    liked_ids = [int(mid) for mid in profile.get("liked_movie_ids", [])[:10] if mid]
     vibes = profile.get("vibes", [])[:5]
     genre_ids = _genre_name_to_id()
 

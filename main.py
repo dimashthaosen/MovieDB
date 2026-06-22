@@ -179,9 +179,39 @@ class TasteProfileRequest(BaseModel):
     limit: int = 24
 
 
+def _optional_user_from_authorization(authorization: str) -> dict | None:
+    token = authorization[7:].strip() if authorization.lower().startswith("bearer ") else ""
+    if not token:
+        return None
+    try:
+        payload = auth.decode_token(token)
+    except auth.jwt.PyJWTError:
+        return None
+    return {"id": int(payload["sub"]), "email": payload["email"]}
+
+
+def _unique_ids(ids: list[int | None]) -> list[int]:
+    out = []
+    seen = set()
+    for mid in ids:
+        if not mid:
+            continue
+        mid = int(mid)
+        if mid in seen:
+            continue
+        seen.add(mid)
+        out.append(mid)
+    return out
+
+
 @app.post("/api/recommendations/personalized")
-def personalized_recommendations(req: TasteProfileRequest):
+def personalized_recommendations(req: TasteProfileRequest, authorization: str = Header(default="")):
     profile = req.dict()
+    user = _optional_user_from_authorization(authorization)
+    if user and userdb.configured():
+        favorites = userdb.list_favorites(user["id"])
+        favorite_ids = [m.get("id") for m in favorites if isinstance(m, dict)]
+        profile["liked_movie_ids"] = _unique_ids(req.liked_movie_ids + favorite_ids)
     limit = max(1, min(req.limit, 50))
     return queries.personalized_recommendations(profile, limit=limit)
 
