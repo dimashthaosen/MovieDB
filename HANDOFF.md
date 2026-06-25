@@ -1,138 +1,111 @@
-# MovieDB — Handoff Document
+# MovieDB Handoff
 
-_Last updated: 2026-06-19_
+Last updated: 2026-06-26
 
-A movie discovery web app: filter by genre/year/rating/sub-genre, view details
-and "more like this," and chat with an AI companion for recommendations. Data is
-served **live from the TMDb API** — there is no database to maintain.
+MovieDB is a FastAPI movie discovery app with a plain HTML/CSS/JavaScript frontend. It uses live TMDb data for browsing and details, OpenRouter for the AI companion, and optional Postgres storage for accounts, favorites, and saved taste profiles.
 
-- **Repo:** https://github.com/dimashthaosen/MovieDB
-- **Production:** https://movie-db-ashy-five.vercel.app (Vercel)
-- **Stack:** Python · FastAPI · plain HTML/JS · TMDb API · OpenRouter (AI)
+## Repository
 
----
+- GitHub: https://github.com/dimashthaosen/MovieDB
+- Current branch: `main`
+- Primary UI shell: `static/index.html`
+- Local run command: `python -m uvicorn main:app --reload`
 
-## 1. Current status
+## Current Product State
 
-| Area | State |
-|------|-------|
-| Core filtering UI (genre, year, rating, sort) | ✅ Done |
-| Sub-genre "collections" chips (Crime Noir, Anime, Cyberpunk…) | ✅ Done |
-| Movie detail modal + "more like this" | ✅ Done |
-| AI companion (chat → grounded recommendations) | ✅ Done |
-| Live TMDb data layer (no local DB) | ✅ Done |
-| Local run | ✅ Verified working |
-| Vercel deploy | ⚠️ Function runs; was returning 502 — see §6 (env-var key had trailing whitespace; fix is re-pasting a clean 32-char key + redeploy) |
-| Render deploy (`render.yaml`) | Available, not actively used |
+| Area | Status |
+| --- | --- |
+| Live TMDb browse/search | Done |
+| Database-wide search | Done |
+| Pagination | Done |
+| Genre/year/rating/language/runtime/sort filters | Done |
+| Curated collections | Done |
+| Movie detail modal | Done |
+| Cast, crew, facts, trailers | Done |
+| Where to watch | Done |
+| More Like This groups | Done |
+| Favorites / My List | Done, requires account storage |
+| Accounts | Done, requires Postgres and JWT secret |
+| Saved taste profile | Done, requires account storage |
+| For You personalized recommendations | Done |
+| Saved favorites blended into For You | Done |
+| AI movie companion | Done |
 
----
+## Architecture
 
-## 2. Architecture
-
-```
-                 ┌──────────────── TMDb API ────────────────┐
-                 │  /discover  /movie/{id}  /genre  /search  │
-                 └────────────────────▲──────────────────────┘
-                                       │ tmdb.py (cached, host-failover)
-   static/index.html  ◄──►  main.py (FastAPI)  ──►  queries.py  ──┘
-                                  │
-                                  └──►  companion.py ──► OpenRouter (AI chat)
-```
-
-The app is **stateless**: every request fetches live from TMDb. This is why it
-deploys on Vercel (no file-based database to persist).
-
-### Key files
-| File | Role |
-|------|------|
-| `tmdb.py` | Resilient, cached TMDb HTTP client (host failover + response cache, fail-fast on 401) |
-| `queries.py` | Turns filter choices into live TMDb queries — the core data layer |
-| `subgenres.py` | Curated sub-genre "collections" → pre-resolved TMDb keyword IDs |
-| `companion.py` | AI companion via OpenRouter, with tool-calling into the live queries |
-| `main.py` | FastAPI app + endpoints, serves the UI |
-| `static/index.html` | Entire front end (filters, chips, grid, detail modal, chat) |
-| `requirements.txt` | Python deps (fastapi, uvicorn, requests, python-dotenv, openai) |
-| `render.yaml` | Render deploy blueprint |
-| `ingest.py`, `db.py`, `seed_demo.py`, `enrich_keywords.py` | **Optional offline tooling** to build a local SQLite snapshot — NOT used at runtime |
-
-### API endpoints
-- `GET /api/movies` — filtered search (`genres`, `genre_match`, `year_min/max`, `rating_min`, `language`, `runtime_max`, `collection`, `sort_by`, `sort_dir`, `limit`, `offset`)
-- `GET /api/movies/{id}` — full detail
-- `GET /api/movies/{id}/similar` — recommendations
-- `GET /api/genres` — genre list
-- `GET /api/collections` — sub-genre collections with live counts
-- `POST /api/chat` — AI companion (`{messages:[{role,content}]}` → `{reply, movies}`)
-
----
-
-## 3. Configuration (environment variables)
-
-Both are required **at runtime** (the app calls these APIs on every request):
-
-| Var | Purpose | Where to get it |
-|-----|---------|-----------------|
-| `TMDB_API_KEY` | Movie data | https://www.themoviedb.org/settings/api → **"API Key (v3 auth)"** — a **32-char** key (NOT the long v4 `eyJ…` token) |
-| `OPENROUTER_API_KEY` | AI companion | https://openrouter.ai/keys (pay-as-you-go credit) |
-
-Local: a `.env` file (gitignored). Production: the host's env-var dashboard.
-`OPENROUTER_MODEL` optionally overrides the model (default `google/gemini-3.1-flash-lite:online`).
-
----
-
-## 4. Run locally
-
-```bash
-pip install -r requirements.txt
-copy .env.example .env          # then paste both keys into .env
-python -m uvicorn main:app --reload
+```text
+Browser UI
+  -> main.py FastAPI routes
+    -> queries.py recommendation/search layer
+      -> tmdb.py live TMDb client
+    -> companion.py OpenRouter AI companion
+    -> userdb.py optional Postgres storage
 ```
 
-Open http://127.0.0.1:8000. (Use `python -m uvicorn`, not bare `uvicorn` — the
-script may not be on PATH.)
+## Important Files
 
----
+- `main.py`: FastAPI app, movie endpoints, auth endpoints, favorites, taste profile.
+- `queries.py`: TMDb discover/search wrappers, ranking, personalized scoring.
+- `tmdb.py`: TMDb request helper with cache and failover.
+- `companion.py`: AI companion prompt and tool-calling.
+- `userdb.py`: Postgres-backed user accounts, favorites, taste profiles.
+- `auth.py`: JWT and password helpers.
+- `subgenres.py`: curated collection configuration.
+- `static/index.html`: frontend shell and markup.
+- `static/styles.css`: frontend styles and responsive layout.
+- `static/app.js`: client-side logic for browse, filters, modal, chat, auth, favorites, and For You.
 
-## 5. Deploy
+## Environment Variables
 
-### Vercel (current production)
-1. Expose `main:app` as the ASGI entrypoint (project is already configured).
-2. **Settings → Environment Variables**: add `TMDB_API_KEY` and `OPENROUTER_API_KEY`
-   for **all environments** (Production/Preview/Development).
-3. **Redeploy** — env-var changes only apply to new deployments.
+Required:
 
-### Render (alternative)
-`render.yaml` is included. New → Blueprint → pick the repo → set the two env vars
-→ deploy. Runs `python -m uvicorn main:app`.
+- `TMDB_API_KEY`: TMDb v3 key.
+- `OPENROUTER_API_KEY`: OpenRouter key.
 
----
+Optional:
 
-## 6. Gotchas & lessons learned (read before debugging)
+- `OPENROUTER_MODEL`: defaults to `google/gemini-3.1-flash-lite:online`.
+- `JWT_SECRET`: required for stable account sessions in production.
+- `POSTGRES_URL` or `DATABASE_URL`: enables account/favorites/profile storage.
 
-1. **TMDb env-var key with trailing whitespace → 401.** A copy-pasted key often
-   picks up a trailing newline/space (33 chars instead of 32). TMDb then returns
-   `Invalid API key`. The 401 error message now prints a masked key fingerprint
-   (`len=…, '1cb4…b368'`) to diagnose this. Fix: re-paste exactly 32 chars, no
-   trailing whitespace, then redeploy.
-2. **v3 key vs v4 token.** The app uses the short **v3** key via `?api_key=`. The
-   long v4 `eyJ…` token will 401.
-3. **Vercel needs a redeploy after editing env vars** — they don't apply to the
-   running deployment retroactively.
-4. **Dev's home ISP intermittently blocks `api.themoviedb.org`** (TLS resets). 
-   `tmdb.py` automatically falls back to `api.tmdb.org` and retries — this does
-   NOT affect cloud hosts (Vercel/Render reach TMDb fine).
-5. **`uvicorn: command not found`** on Windows → use `python -m uvicorn`.
-6. **Vercel + SQLite doesn't work** — the app used to bundle `movies.db`, but
-   Vercel's read-only/ephemeral filesystem can't serve file-based SQLite. That's
-   why it was rearchitected to live TMDb serving. Don't reintroduce a file DB for
-   the Vercel deploy.
+## Main Endpoints
 
----
+- `GET /api/movies`
+  - Params: `query`, `genres`, `genre_match`, `year_min`, `year_max`, `rating_min`, `language`, `runtime_max`, `collection`, `sort_by`, `sort_dir`, `limit`, `offset`.
+- `GET /api/genres`
+- `GET /api/collections`
+- `GET /api/movies/{movie_id}`
+- `GET /api/movies/{movie_id}/extras`
+- `GET /api/movies/{movie_id}/watch-providers`
+- `GET /api/movies/{movie_id}/recommendations`
+- `POST /api/recommendations/personalized`
+- `POST /api/chat`
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `GET/POST/DELETE /api/favorites`
+- `GET/PUT /api/taste-profile`
 
-## 7. Optional next steps
+## Current Frontend Behavior
 
-- **Favorites / watchlist** — let users mark films, bias recommendations.
-- **Weighted ranking** — blend rating × popularity for "best" sorting.
-- **More collections** — add entries to `subgenres.py` (pre-resolve keyword IDs).
-- **Runtime filter in the UI** — backend already supports `runtime_max` live.
-- **Response caching / rate-limit handling** — for higher traffic, cache TMDb
-  responses more aggressively (basic in-memory TTL cache already in `tmdb.py`).
+- Search bar calls backend search, not local filtering.
+- Browse pages show 50 movies per page with Previous/Next controls.
+- Filters reset pagination to page 1.
+- For You uses manual liked-movie anchors plus saved favorites when signed in.
+- The For You panel explains that saved favorites quietly improve picks.
+- Browse/search/page/For You requests show skeleton loading states.
+- Phone header wraps so search gets a full-width row.
+
+## Known Technical Debt
+
+- `static/app.js` is still large and should eventually be split into modules for filters, modal, chat, auth, favorites, and recommendations.
+- README/deployment notes should be kept updated whenever new product features ship.
+- There are no automated browser regression tests yet.
+- TMDb data can be slow or unavailable, so higher-traffic deployments should use stronger caching.
+
+## Suggested Next Pass
+
+1. Split `static/app.js` into smaller modules without changing behavior.
+2. Add Playwright smoke tests for browse, search, pagination, details, For You, and favorites.
+3. Add a clearer first-run onboarding path for For You.
+4. Add a production deploy checklist for Vercel/Render env vars.
