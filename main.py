@@ -207,11 +207,15 @@ def _unique_ids(ids: list[int | None]) -> list[int]:
 @app.post("/api/recommendations/personalized")
 def personalized_recommendations(req: TasteProfileRequest, authorization: str = Header(default="")):
     profile = req.dict()
+    profile["manual_liked_movie_ids"] = _unique_ids(req.liked_movie_ids)
     user = _optional_user_from_authorization(authorization)
     if user and userdb.configured():
         favorites = userdb.list_favorites(user["id"])
         favorite_ids = [m.get("id") for m in favorites if isinstance(m, dict)]
+        profile["favorite_movie_ids"] = _unique_ids(favorite_ids)
         profile["liked_movie_ids"] = _unique_ids(req.liked_movie_ids + favorite_ids)
+    else:
+        profile["favorite_movie_ids"] = []
     limit = max(1, min(req.limit, 50))
     return queries.personalized_recommendations(profile, limit=limit)
 

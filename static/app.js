@@ -203,9 +203,17 @@ const $ = (id) => document.getElementById(id);
     function reasonText(reason) {
       return String(reason || "")
         .replace(/^shares your anchor taste:/i, "Shares your taste:")
-        .replace(/^matches your selected vibe:/i, "Matches your vibe:")
+        .replace(/^shares your taste for /i, "Because you like ")
+        .replace(/^leans into your current mood with /i, "Matches your mood with ")
+        .replace(/^starts from your saved favorite /i, "From your favorite ")
+        .replace(/^echoes favorites from your list like /i, "Close to favorites like ")
+        .replace(/^bridges a saved favorite and an active pick like /i, "Bridges favorites and picks like ")
+        .replace(/^pulls together picks like /i, "Connects picks like ")
+        .replace(/^builds on your pick /i, "Builds from your pick ")
+        .replace(/^carries the texture your list repeats:/i, "Matches the texture in your list:")
         .replace(/^fits your movie-type preference:/i, "Fits your preferred type:")
-        .replace(/^fits your zeitgeist preference:/i, "Fits your discovery mode:");
+        .replace(/^fits your zeitgeist preference:/i, "Fits your discovery mode:")
+        .replace(/^lands with a strong audience score /i, "Strong audience score ");
     }
 
     function cardHTML(m) {
@@ -216,8 +224,9 @@ const $ = (id) => document.getElementById(id);
       const fav = state.user
         ? `<button class="fav-btn ${state.favorites.has(m.id) ? "on" : ""}" data-fav="${m.id}" aria-label="Save to your list" title="Save to your list">${state.favorites.has(m.id) ? "♥" : "♡"}</button>`
         : "";
+      const matchPill = m.match_label ? `<span class="match-pill">${esc(m.match_label)}</span>` : "";
       const match = m.match_score
-        ? `<div class="match-panel"><div class="match-score">${esc(m.match_score)}% taste match${m.risk_level ? ` · ${esc(m.risk_level)}` : ""}</div><ul>${(m.match_reasons || []).slice(0, 3).map(r => `<li>${esc(reasonText(r))}</li>`).join("")}</ul></div>`
+        ? `<div class="match-panel"><div class="match-head">${matchPill}<div class="match-score">${esc(m.match_score)}% taste match</div></div><ul>${(m.match_reasons || []).slice(0, 3).map(r => `<li>${esc(reasonText(r))}</li>`).join("")}</ul></div>`
         : "";
       return `
         <div class="card" data-id="${m.id}">
@@ -414,7 +423,7 @@ const $ = (id) => document.getElementById(id);
         state.results = data.results || [];
         state.lastCount = state.results.length;
         $("tasteStatus").textContent = state.results.length
-          ? `${tasteSignalSummary()} Sorted by personal fit, with reasons on each card.`
+          ? `${tasteSignalSummary()} Sorted by personal fit, with safe bets, hidden gems, and stretch picks.`
           : "No matches yet. Add a favorite, choose a vibe, or loosen rating tolerance.";
       } catch (e) {
         if (requestId !== tasteRequestSeq || !state.forYou) return;

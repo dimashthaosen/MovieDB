@@ -75,6 +75,8 @@ VIBE_LABELS = {
 
 ANCHOR_SOURCE_WEIGHT = 7.5
 DISCOVERY_SOURCE_WEIGHT = 3.0
+FAVORITE_SOURCE_WEIGHT = 9.2
+MANUAL_SOURCE_WEIGHT = 7.6
 
 MOVIE_TYPE_FACETS = {
     "prestige": {"prestige", "critically_loved"},
@@ -685,15 +687,105 @@ def _facet_label(facet: str) -> str:
     }.get(facet, facet.replace("_", " "))
 
 
-def _anchor_profile(anchor_movies: list[dict]) -> dict:
+def _join_phrases(items: list[str]) -> str:
+    parts = [item for item in items if item]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return f"{', '.join(parts[:-1])}, and {parts[-1]}"
+
+
+def _anchor_entry_weight(favorite_position: int | None, manual_position: int | None) -> float:
+    weight = 0.0
+    if favorite_position is not None:
+        weight += max(1.24 - favorite_position * 0.09, 0.8) * 1.15
+    if manual_position is not None:
+        weight += max(1.05 - manual_position * 0.1, 0.62)
+    return weight or 0.92
+
+
+def _build_anchor_entries(profile: dict) -> list[dict]:
+    manual_ids = [int(mid) for mid in profile.get("manual_liked_movie_ids", [])[:5] if mid]
+    favorite_ids = [int(mid) for mid in profile.get("favorite_movie_ids", [])[:6] if mid]
+    fallback_ids = [int(mid) for mid in profile.get("liked_movie_ids", [])[:10] if mid]
+
+    specs: dict[int, dict] = {}
+    for position, movie_id in enumerate(favorite_ids):
+        specs.setdefault(movie_id, {"id": movie_id, "favorite_position": None, "manual_position": None})
+        specs[movie_id]["favorite_position"] = position
+    for position, movie_id in enumerate(manual_ids):
+        specs.setdefault(movie_id, {"id": movie_id, "favorite_position": None, "manual_position": None})
+        specs[movie_id]["manual_position"] = position
+    if not specs:
+        for position, movie_id in enumerate(fallback_ids):
+            specs.setdefault(movie_id, {"id": movie_id, "favorite_position": None, "manual_position": None})
+            specs[movie_id]["manual_position"] = position
+
+    ordered_ids: list[int] = []
+    for movie_id in manual_ids + favorite_ids + fallback_ids:
+        if movie_id and movie_id not in ordered_ids:
+            ordered_ids.append(movie_id)
+
+    entries = []
+    for movie_id in ordered_ids[:10]:
+        spec = specs.get(movie_id)
+        if not spec:
+            continue
+        if spec["favorite_position"] is not None and spec["manual_position"] is not None:
+            source_type = "favorite_manual"
+        elif spec["favorite_position"] is not None:
+            source_type = "favorite"
+        else:
+            source_type = "manual"
+        entries.append({
+            "id": movie_id,
+            "source_type": source_type,
+            "favorite_position": spec["favorite_position"],
+            "manual_position": spec["manual_position"],
+            "weight": _anchor_entry_weight(spec["favorite_position"], spec["manual_position"]),
+        })
+    return entries
+
+
+def _hydrate_anchor_entries(anchor_entries: list[dict]) -> tuple[list[dict], dict[int, dict]]:
+    hydrated: list[dict] = []
+    anchor_lookup: dict[int, dict] = {}
+    for entry in anchor_entries:
+        try:
+            movie = get_movie(entry["id"])
+        except tmdb.TMDbError:
+            movie = None
+        if not movie:
+            continue
+        enriched = {**entry, "movie": movie, "title": movie.get("title") or "Untitled"}
+        hydrated.append(enriched)
+        anchor_lookup[entry["id"]] = {
+            "title": enriched["title"],
+            "source_type": entry["source_type"],
+            "weight": entry["weight"],
+        }
+    return hydrated, anchor_lookup
+
+
+def _anchor_profile(anchor_entries: list[dict]) -> dict:
     genre_weights: dict[str, float] = {}
     facet_weights: dict[str, float] = {}
     languages: dict[str, int] = {}
     decades: dict[str, int] = {}
     years = []
     ratings = []
-    for index, movie in enumerate(anchor_movies):
-        weight = max(1.0 - index * 0.12, 0.55)
+    source_mix = {"favorite": 0, "manual": 0}
+    for entry in anchor_entries:
+        movie = entry["movie"]
+        weight = entry["weight"]
+        source_type = entry["source_type"]
+        if source_type in {"favorite", "favorite_manual"}:
+            source_mix["favorite"] += 1
+        if source_type in {"manual", "favorite_manual"}:
+            source_mix["manual"] += 1
         for genre in movie.get("genres", []):
             genre_weights[genre] = genre_weights.get(genre, 0) + weight
         for facet in _movie_facets(movie):
@@ -717,6 +809,7 @@ def _anchor_profile(anchor_movies: list[dict]) -> dict:
         "dominant_decade": dominant_decade,
         "year_center": sum(years) / len(years) if years else None,
         "avg_rating": sum(ratings) / len(ratings) if ratings else None,
+        "source_mix": source_mix,
     }
 
 
@@ -747,7 +840,7 @@ def _facet_score(movie: dict, anchor_data: dict) -> tuple[float, str | None]:
         return 0.0, None
     score = ratio * 10
     labels = ", ".join(_facet_label(f) for f in matches[:2])
-    return score, "matches the movie type your anchors suggest: " + labels
+    return score, "carries the texture your list repeats: " + labels
 
 
 def _zeitgeist_score(movie: dict, profile: dict, anchor_data: dict) -> tuple[float, str | None]:
@@ -875,18 +968,66 @@ def _runtime_score(movie: dict, profile: dict) -> tuple[float, str | None]:
     return 0.0, None
 
 
-def _source_score(movie: dict) -> tuple[float, str | None]:
+def _anchor_source_ids(sources: set[str], prefix: str) -> list[int]:
+    ids: list[int] = []
+    for source in sources:
+        if not source.startswith(prefix):
+            continue
+        try:
+            ids.append(int(source.rsplit(":", 1)[1]))
+        except ValueError:
+            continue
+    return ids
+
+
+def _anchor_titles_for_reason(anchor_ids: list[int], anchor_lookup: dict[int, dict], limit: int = 2) -> str:
+    titles: list[str] = []
+    for movie_id in anchor_ids:
+        title = (anchor_lookup.get(movie_id) or {}).get("title")
+        if title and title not in titles:
+            titles.append(title)
+        if len(titles) >= limit:
+            break
+    return _join_phrases(titles)
+
+
+def _source_score(movie: dict, anchor_lookup: dict[int, dict]) -> tuple[float, str | None]:
     sources = set(movie.get("_sources") or [])
-    source_weight = min(movie.get("_source_weight", 0.0), 18.0) * 0.12
-    anchor_sources = [source for source in sources if source.startswith("anchor:")]
-    if len(anchor_sources) >= 2:
-        return 10.0 + source_weight, "connects multiple movies you liked"
-    if anchor_sources:
-        return 7.0 + source_weight, "comes from a movie you liked"
+    source_weight = min(movie.get("_source_weight", 0.0), 22.0) * 0.11
+    favorite_anchor_ids = _anchor_source_ids(sources, "favorite_anchor:")
+    manual_anchor_ids = _anchor_source_ids(sources, "manual_anchor:")
+    blended_anchor_ids = _anchor_source_ids(sources, "favorite_manual_anchor:")
+    deep_sources = [source for source in sources if "deep_discovery" in source]
+    quality_sources = [source for source in sources if "quality_discovery" in source]
+    recent_sources = [source for source in sources if "recent_discovery" in source]
+
+    if blended_anchor_ids:
+        titles = _anchor_titles_for_reason(blended_anchor_ids, anchor_lookup)
+        return 11.2 + source_weight, f"bridges a saved favorite and an active pick like {titles}" if titles else "bridges your saved favorites and current picks"
+    if len(favorite_anchor_ids) >= 2:
+        titles = _anchor_titles_for_reason(favorite_anchor_ids, anchor_lookup)
+        return 10.6 + source_weight, f"echoes favorites from your list like {titles}" if titles else "echoes several favorites from your list"
+    if favorite_anchor_ids:
+        title = _anchor_titles_for_reason(favorite_anchor_ids, anchor_lookup, limit=1)
+        return 8.8 + source_weight, f"starts from your saved favorite {title}" if title else "starts from one of your saved favorites"
+    if len(manual_anchor_ids) >= 2:
+        titles = _anchor_titles_for_reason(manual_anchor_ids, anchor_lookup)
+        return 9.2 + source_weight, f"pulls together picks like {titles}" if titles else "pulls together multiple picks you gave it"
+    if manual_anchor_ids:
+        title = _anchor_titles_for_reason(manual_anchor_ids, anchor_lookup, limit=1)
+        return 7.6 + source_weight, f"builds on your pick {title}" if title else "builds on one of your current picks"
     if "vibe_discovery" in sources and "anchor_discovery" in sources:
-        return 6.0 + source_weight, "balances your anchors with the chosen vibe"
+        return 6.1 + source_weight, "balances your core taste with the mood you picked"
+    if deep_sources and quality_sources:
+        return 5.7 + source_weight, "digs past the obvious hits for a stronger fit"
+    if deep_sources:
+        return 5.0 + source_weight, "comes from a deeper cut in your lane"
+    if quality_sources:
+        return 4.8 + source_weight, "stood out as a high-rated fit in your lane"
+    if recent_sources:
+        return 4.2 + source_weight, "keeps the picks fresh without leaving your lane"
     if "vibe_discovery" in sources:
-        return 4.0 + source_weight, "was discovered from your selected vibe"
+        return 4.0 + source_weight, "leans into the mood you asked for"
     return 1.5 + source_weight, None
 
 
@@ -914,7 +1055,7 @@ def _append_reason(reasons: list[tuple[float, str]], weight: float, text: str | 
         reasons.append((weight, text))
 
 
-def _personal_score(movie: dict, profile: dict, anchor_data: dict, vibe_data: dict) -> tuple[float, list[str]]:
+def _personal_score(movie: dict, profile: dict, anchor_data: dict, vibe_data: dict, anchor_lookup: dict[int, dict]) -> tuple[float, list[str]]:
     score = 12.0
     reason_weights: list[tuple[float, str]] = []
     movie_genres = set(movie.get("genres") or [])
@@ -924,17 +1065,17 @@ def _personal_score(movie: dict, profile: dict, anchor_data: dict, vibe_data: di
     if anchor_matches:
         anchor_score = anchor_ratio * 22
         score += anchor_score
-        _append_reason(reason_weights, anchor_score, "shares your anchor taste: " + ", ".join(anchor_matches[:3]))
+        _append_reason(reason_weights, anchor_score, "shares your taste for " + ", ".join(anchor_matches[:3]))
     elif anchor_data.get("genre_weights"):
         score -= 5.0
     if vibe_matches:
         vibe_score = vibe_ratio * 18
         score += vibe_score
-        _append_reason(reason_weights, vibe_score, "matches your selected vibe: " + ", ".join(vibe_matches[:3]))
+        _append_reason(reason_weights, vibe_score, "leans into your current mood with " + ", ".join(vibe_matches[:3]))
     elif vibe_data.get("genre_weights"):
         score -= 6.0
 
-    source_bonus, source_reason = _source_score(movie)
+    source_bonus, source_reason = _source_score(movie, anchor_lookup)
     score += source_bonus
     _append_reason(reason_weights, source_bonus, source_reason)
 
@@ -942,7 +1083,7 @@ def _personal_score(movie: dict, profile: dict, anchor_data: dict, vibe_data: di
     score += confidence
     rating = movie.get("rating") or 0
     if rating >= 7.2:
-        _append_reason(reason_weights, min(confidence, 10), f"strong audience score ({rating:.1f})")
+        _append_reason(reason_weights, min(confidence, 10), f"lands with a strong audience score ({rating:.1f})")
 
     novelty, novelty_reason = _novelty_score(movie, profile, anchor_data)
     score += novelty
@@ -1024,7 +1165,11 @@ def _discover_candidates(
     year_max: int | None = None,
     rating_min: float | None = None,
     runtime_max: int | None = None,
+    sort_by: str = "popularity",
+    sort_dir: str = "desc",
     limit: int = 24,
+    offset: int = 0,
+    language_limit: int = 3,
 ) -> None:
     kwargs = {
         "genres": genres or None,
@@ -1033,11 +1178,13 @@ def _discover_candidates(
         "year_max": year_max,
         "rating_min": rating_min,
         "runtime_max": runtime_max,
-        "sort_by": "popularity",
+        "sort_by": sort_by,
+        "sort_dir": sort_dir,
         "limit": limit,
+        "offset": offset,
     }
     if languages:
-        for lang in languages[:5]:
+        for lang in languages[:language_limit]:
             try:
                 rows = search_movies(**kwargs, language=lang)
             except tmdb.TMDbError:
@@ -1051,6 +1198,23 @@ def _discover_candidates(
             return
         for movie in rows:
             _add_candidate(candidates, movie, source, source_weight)
+
+
+def _match_label(movie: dict, profile: dict) -> str:
+    facets = _movie_facets(movie)
+    sources = set(movie.get("_sources") or [])
+    rating_flex = float(profile.get("rating_flexibility", 0.35))
+    if ("sleeper" in facets or "niche" in facets) and rating_flex >= 0.58:
+        return "Hidden gem"
+    if any(source.startswith("favorite_anchor:") or source.startswith("favorite_manual_anchor:") for source in sources):
+        return "From your favorites"
+    if movie.get("risk_level") == "Safe pick":
+        return "Safe bet"
+    if movie.get("risk_level") in {"Slight gamble", "Wild card"}:
+        return "Stretch pick"
+    if "current_zeitgeist" in facets:
+        return "Right now pick"
+    return "Personal fit"
 
 
 def _decade_label(year: int | None) -> str:
@@ -1132,19 +1296,14 @@ def _diversify_ranked_movies(scored: list[dict], limit: int, profile: dict) -> l
 
 def personalized_recommendations(profile: dict, limit: int = 24) -> dict:
     """Score recommendations from a lightweight taste profile."""
-    liked_ids = [int(mid) for mid in profile.get("liked_movie_ids", [])[:10] if mid]
     vibes = profile.get("vibes", [])[:5]
     genre_ids = _genre_name_to_id()
 
-    anchor_movies = []
-    for mid in liked_ids:
-        try:
-            movie = get_movie(mid)
-        except tmdb.TMDbError:
-            movie = None
-        if movie:
-            anchor_movies.append(movie)
-    anchor_data = _anchor_profile(anchor_movies)
+    anchor_entries = _build_anchor_entries(profile)
+    hydrated_anchors, anchor_lookup = _hydrate_anchor_entries(anchor_entries)
+    liked_ids = [entry["id"] for entry in hydrated_anchors]
+    anchor_movies = [entry["movie"] for entry in hydrated_anchors]
+    anchor_data = _anchor_profile(hydrated_anchors)
     vibe_data = _vibe_profile(vibes)
 
     target_genres = set(anchor_data["genre_weights"])
@@ -1159,44 +1318,87 @@ def personalized_recommendations(profile: dict, limit: int = 24) -> dict:
     rating_min = round(max(7.2 - (rating_flex * 1.9), 4.7), 1)
     language_scope = profile.get("language_scope")
     languages = LANGUAGE_SCOPES.get(language_scope, [])
+    prefers_long_tail = (
+        rating_flex >= 0.58
+        or profile.get("movie_type") in {"cult", "edgy"}
+        or profile.get("zeitgeist") == "sleeper"
+        or any(facet in anchor_data.get("facet_weights", {}) for facet in ("sleeper", "niche", "genre_bender"))
+    )
+    prefers_mainstream = (
+        rating_flex <= 0.35
+        or profile.get("movie_type") == "popcorn"
+        or profile.get("zeitgeist") in {"current", "mainstream"}
+        or "mainstream" in anchor_data.get("facet_weights", {})
+    )
 
     candidates: dict[int, dict] = {}
-    for movie_id in liked_ids:
+    for entry in hydrated_anchors:
+        movie_id = entry["id"]
+        source_type = entry["source_type"]
+        source_prefix = f"{source_type}_anchor"
+        source_weight = FAVORITE_SOURCE_WEIGHT if source_type in {"favorite", "favorite_manual"} else MANUAL_SOURCE_WEIGHT
+        similar_limit = 18 if source_type in {"favorite", "favorite_manual"} else 14
         try:
-            similar_rows = similar_movies(movie_id, limit=14)
+            similar_rows = similar_movies(movie_id, limit=similar_limit)
         except tmdb.TMDbError:
             similar_rows = []
         for movie in similar_rows:
-            _add_candidate(candidates, movie, f"anchor:{movie_id}", ANCHOR_SOURCE_WEIGHT)
+            _add_candidate(candidates, movie, f"{source_prefix}:{movie_id}", source_weight + (entry["weight"] * 0.55))
 
     if anchor_genre_ids:
         _discover_candidates(
-            candidates, "anchor_discovery", DISCOVERY_SOURCE_WEIGHT,
+            candidates, "anchor_discovery", DISCOVERY_SOURCE_WEIGHT + 0.6,
             genres=anchor_genre_ids, languages=languages, year_min=year_min,
-            year_max=year_max, rating_min=rating_min, runtime_max=runtime_max, limit=24,
+            year_max=year_max, rating_min=rating_min, runtime_max=runtime_max, sort_by="popularity", limit=20,
+        )
+        _discover_candidates(
+            candidates, "anchor_quality_discovery", DISCOVERY_SOURCE_WEIGHT + 1.8,
+            genres=anchor_genre_ids, languages=languages, year_min=year_min,
+            year_max=year_max, rating_min=max(rating_min - 0.2, 4.7), runtime_max=runtime_max, sort_by="rating", limit=16,
         )
     _discover_candidates(
         candidates, "vibe_discovery", DISCOVERY_SOURCE_WEIGHT + 1.5,
         genres=vibe_genre_ids or target_genre_ids, languages=languages, year_min=year_min,
-        year_max=year_max, rating_min=max(rating_min - 0.3, 4.7), runtime_max=runtime_max, limit=26,
+        year_max=year_max, rating_min=max(rating_min - 0.3, 4.7), runtime_max=runtime_max, sort_by="best_match", limit=18, offset=24,
+    )
+    _discover_candidates(
+        candidates, "vibe_quality_discovery", DISCOVERY_SOURCE_WEIGHT + 1.2,
+        genres=vibe_genre_ids or target_genre_ids, languages=languages, year_min=year_min,
+        year_max=year_max, rating_min=max(rating_min - 0.2, 4.7), runtime_max=runtime_max, sort_by="rating", limit=14,
     )
     if target_genre_ids:
         _discover_candidates(
             candidates, "blend_discovery", DISCOVERY_SOURCE_WEIGHT + 2.0,
             genres=target_genre_ids, languages=languages, year_min=year_min,
-            year_max=year_max, rating_min=rating_min, runtime_max=runtime_max, limit=34,
+            year_max=year_max, rating_min=rating_min, runtime_max=runtime_max, sort_by="best_match", limit=18, offset=40,
+        )
+        _discover_candidates(
+            candidates, "blend_quality_discovery", DISCOVERY_SOURCE_WEIGHT + 1.6,
+            genres=target_genre_ids, languages=languages, year_min=year_min,
+            year_max=year_max, rating_min=max(rating_min - 0.15, 4.7), runtime_max=runtime_max, sort_by="rating", limit=16, offset=12,
         )
     if profile.get("era") and target_genre_ids:
         _discover_candidates(
             candidates, "era_discovery", DISCOVERY_SOURCE_WEIGHT,
             genres=target_genre_ids, languages=languages, year_min=year_min,
-            year_max=year_max, rating_min=max(rating_min - 0.4, 4.7), runtime_max=runtime_max, limit=18,
+            year_max=year_max, rating_min=max(rating_min - 0.4, 4.7), runtime_max=runtime_max, sort_by="year", sort_dir="desc", limit=16,
         )
-    if rating_flex >= 0.65 and target_genre_ids:
+    if prefers_long_tail and target_genre_ids:
         _discover_candidates(
-            candidates, "explore_discovery", DISCOVERY_SOURCE_WEIGHT,
+            candidates, "deep_discovery", DISCOVERY_SOURCE_WEIGHT + 1.1,
             genres=target_genre_ids, languages=languages, year_min=year_min,
-            year_max=year_max, rating_min=max(rating_min - 1.0, 4.6), runtime_max=runtime_max, limit=20,
+            year_max=year_max, rating_min=max(rating_min - 1.0, 4.6), runtime_max=runtime_max, sort_by="best_match", limit=18, offset=72,
+        )
+        _discover_candidates(
+            candidates, "deep_quality_discovery", DISCOVERY_SOURCE_WEIGHT + 0.9,
+            genres=target_genre_ids, languages=languages, year_min=year_min,
+            year_max=year_max, rating_min=max(rating_min - 0.8, 4.6), runtime_max=runtime_max, sort_by="rating", limit=14, offset=28,
+        )
+    if prefers_mainstream and target_genre_ids:
+        _discover_candidates(
+            candidates, "recent_discovery", DISCOVERY_SOURCE_WEIGHT + 0.8,
+            genres=target_genre_ids, languages=languages, year_min=max(year_min or 2016, 2016),
+            year_max=year_max, rating_min=max(rating_min - 0.2, 4.7), runtime_max=runtime_max, sort_by="year", sort_dir="desc", limit=14,
         )
 
     for mid in liked_ids:
@@ -1206,11 +1408,12 @@ def personalized_recommendations(profile: dict, limit: int = 24) -> dict:
     for movie in candidates.values():
         if not _fits_profile_constraints(movie, profile):
             continue
-        score, reasons = _personal_score(movie, profile, anchor_data, vibe_data)
+        score, reasons = _personal_score(movie, profile, anchor_data, vibe_data, anchor_lookup)
         movie = dict(movie)
         movie["match_score"] = round(score)
         movie["match_reasons"] = reasons
         movie["risk_level"] = _risk_level(movie, rating_flex)
+        movie["match_label"] = _match_label(movie, profile)
         movie.pop("_sources", None)
         movie.pop("_source_weight", None)
         scored.append(movie)
@@ -1221,6 +1424,8 @@ def personalized_recommendations(profile: dict, limit: int = 24) -> dict:
         "profile_summary": {
             "anchors": [m["title"] for m in anchor_movies],
             "vibes": vibes,
+            "favorite_anchor_count": anchor_data.get("source_mix", {}).get("favorite", 0),
+            "manual_anchor_count": anchor_data.get("source_mix", {}).get("manual", 0),
             "rating_flexibility": rating_flex,
             "language_scope": language_scope or "any",
             "era": profile.get("era") or "any",
