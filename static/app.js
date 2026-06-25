@@ -19,6 +19,8 @@ const $ = (id) => document.getElementById(id);
     const extrasCache = new Map();
     const providerCache = new Map();
     const recCache = new Map();
+    let tasteRequestSeq = 0;
+    let tasteTimer = null;
 
     // Deterministic poster gradient (matches design tokens) for missing images.
     const PALETTES = [
@@ -95,6 +97,7 @@ const $ = (id) => document.getElementById(id);
 
     function browseFetch() {
       state.forYou = false;
+      tasteRequestSeq += 1;
       state.viewingList = false;
       renderTasteControls();
       fetchMovies();
@@ -110,6 +113,15 @@ const $ = (id) => document.getElementById(id);
       browseFetch();
     }
 
+    function leaveForYou() {
+      state.forYou = false;
+      state.tasteLoading = false;
+      tasteRequestSeq += 1;
+      resetBrowsePage();
+      renderTasteControls();
+      fetchMovies();
+    }
+
     function visibleMovies() {
       const source = state.viewingList ? state.favoritesList : state.results;
       if (!state.viewingList) return source;
@@ -123,6 +135,7 @@ const $ = (id) => document.getElementById(id);
       return `${m.title || "Untitled"}${m.release_year ? ` (${m.release_year})` : ""}`;
     }
     function addAnchorMovie(movie) {
+      if (state.tasteLoading) return;
       if (!movie || !movie.id || state.taste.liked_movies.some(m => m.id === movie.id)) return;
       state.taste.liked_movies = state.taste.liked_movies.concat([movie]).slice(0, 5);
       state.taste.anchorQuery = "";
@@ -132,6 +145,7 @@ const $ = (id) => document.getElementById(id);
       if (state.forYou) runTasteMatch();
     }
     function removeAnchorMovie(id) {
+      if (state.tasteLoading) return;
       state.taste.liked_movies = state.taste.liked_movies.filter(m => m.id !== id);
       renderTasteControls();
       if (state.forYou) runTasteMatch();
@@ -165,6 +179,7 @@ const $ = (id) => document.getElementById(id);
     }
 
     async function addFirstAnchorCandidate() {
+      if (state.tasteLoading) return;
       const current = $("anchorSearch").value.trim();
       const first = state.taste.anchorSuggestions[0];
       if (first && (!current || compactTitle(first).toLowerCase().includes(current.toLowerCase()) || first.title.toLowerCase().includes(current.toLowerCase()))) {
@@ -279,10 +294,13 @@ const $ = (id) => document.getElementById(id);
         : `<span class="num">${list.length}</span><span class="lbl">titles${esc(summary)}${esc(pageSummary)}</span>`;
 
       if (!list.length) {
+        const emptyMessage = state.forYou
+          ? "No For You matches yet. Add a favorite, choose a vibe, or loosen rating tolerance."
+          : "No movies match those filters.";
         $("results").innerHTML = `
           <div class="empty">
             <div class="ico">&#127902;</div>
-            <div class="msg">No movies match those filters.</div>
+            <div class="msg">${esc(emptyMessage)}</div>
             <button id="emptyReset">Reset filters</button>
           </div>`;
         const er = $("emptyReset");
@@ -328,11 +346,35 @@ const $ = (id) => document.getElementById(id);
       };
     }
 
+    function tasteSignalSummary() {
+      const parts = [];
+      if (state.user && state.favoritesList.length) {
+        parts.push(`${state.favoritesList.length} saved favorite${state.favoritesList.length === 1 ? "" : "s"}`);
+      }
+      if (state.taste.liked_movies.length) {
+        parts.push(`${state.taste.liked_movies.length} manual pick${state.taste.liked_movies.length === 1 ? "" : "s"}`);
+      }
+      if (state.taste.vibes.length) {
+        parts.push(`${state.taste.vibes.length} vibe${state.taste.vibes.length === 1 ? "" : "s"}`);
+      }
+      return parts.length ? `Using ${parts.join(" + ")}.` : "Using broad discovery signals.";
+    }
+
+    function scheduleTasteMatch(delay = 450) {
+      if (!state.forYou || state.tasteLoading) return;
+      clearTimeout(tasteTimer);
+      tasteTimer = setTimeout(runTasteMatch, delay);
+    }
+
     function renderTasteControls() {
       $("tastePanel").classList.toggle("open", state.forYou);
       $("tasteToggle").classList.toggle("on", state.forYou);
+      $("runTaste").disabled = state.tasteLoading;
+      $("anchorAdd").disabled = state.tasteLoading;
+      $("anchorSearch").disabled = state.tasteLoading;
       document.querySelectorAll(".vibe-chip").forEach(btn => {
         btn.classList.toggle("on", state.taste.vibes.includes(btn.dataset.vibe));
+        btn.disabled = state.tasteLoading;
       });
       $("tasteEra").value = state.taste.era || "";
       $("tasteType").value = state.taste.movie_type || "";
@@ -340,17 +382,21 @@ const $ = (id) => document.getElementById(id);
       $("tasteRuntime").value = state.taste.runtime || "";
       $("tasteZeitgeist").value = state.taste.zeitgeist || "";
       $("ratingFlex").value = state.taste.rating_flexibility ?? 0.35;
+      ["tasteEra", "tasteType", "tasteLanguage", "tasteRuntime", "tasteZeitgeist", "ratingFlex"].forEach(id => {
+        $(id).disabled = state.tasteLoading;
+      });
       $("anchorSearch").value = state.taste.anchorQuery || "";
       $("anchorList").innerHTML = state.taste.liked_movies.map(m => `
-        <span class="anchor-chip">${esc(compactTitle(m))}<button type="button" data-anchor-remove="${m.id}" aria-label="Remove ${esc(m.title)}">&times;</button></span>
+        <span class="anchor-chip">${esc(compactTitle(m))}<button type="button" data-anchor-remove="${m.id}" aria-label="Remove ${esc(m.title)}" ${state.tasteLoading ? "disabled" : ""}>&times;</button></span>
       `).join("");
       const suggestions = state.taste.anchorLoading
         ? `<span class="anchor-hint">Searching...</span>`
-        : state.taste.anchorSuggestions.map(m => `<button class="anchor-suggestion" type="button" data-anchor-id="${m.id}">${esc(compactTitle(m))}</button>`).join("");
+        : state.taste.anchorSuggestions.map(m => `<button class="anchor-suggestion" type="button" data-anchor-id="${m.id}" ${state.tasteLoading ? "disabled" : ""}>${esc(compactTitle(m))}</button>`).join("");
       $("anchorSuggestions").innerHTML = suggestions;
     }
 
     async function runTasteMatch() {
+      const requestId = ++tasteRequestSeq;
       state.forYou = true;
       state.tasteLoading = true;
       renderTasteControls();
@@ -364,15 +410,21 @@ const $ = (id) => document.getElementById(id);
         const r = getToken() ? await authedFetch("/api/recommendations/personalized", request) : await fetch("/api/recommendations/personalized", request);
         if (!r.ok) throw new Error("HTTP " + r.status);
         const data = await r.json();
+        if (requestId !== tasteRequestSeq || !state.forYou) return;
         state.results = data.results || [];
         state.lastCount = state.results.length;
-        $("tasteStatus").textContent = state.results.length ? "Sorted by personal fit, with reasons on each card." : "No matches yet. Try broader taste signals.";
+        $("tasteStatus").textContent = state.results.length
+          ? `${tasteSignalSummary()} Sorted by personal fit, with reasons on each card.`
+          : "No matches yet. Add a favorite, choose a vibe, or loosen rating tolerance.";
       } catch (e) {
+        if (requestId !== tasteRequestSeq || !state.forYou) return;
         state.results = [];
         $("tasteStatus").textContent = "Could not build matches right now.";
       } finally {
+        if (requestId !== tasteRequestSeq) return;
         state.tasteLoading = false;
         renderGrid();
+        renderTasteControls();
       }
     }
 
@@ -726,13 +778,16 @@ const $ = (id) => document.getElementById(id);
     $("reset").addEventListener("click", resetFilters);
     $("genreTrigger").addEventListener("click", () => { state.genreMenuOpen = !state.genreMenuOpen; renderGenrePopover(); });
     $("tasteToggle").addEventListener("click", () => {
-      state.forYou = !state.forYou;
+      if (state.forYou) {
+        leaveForYou();
+        return;
+      }
+      state.forYou = true;
       renderTasteControls();
-      if (state.forYou && !state.results.some(m => m.match_score)) runTasteMatch();
-      else renderGrid();
+      runTasteMatch();
     });
     $("runTaste").addEventListener("click", runTasteMatch);
-    $("clearTaste").addEventListener("click", () => { state.forYou = false; resetBrowsePage(); renderTasteControls(); fetchMovies(); });
+    $("clearTaste").addEventListener("click", leaveForYou);
     $("anchorSearch").addEventListener("input", (e) => {
       clearTimeout(anchorTimer);
       anchorTimer = setTimeout(() => searchAnchorMovies(e.target.value), 250);
@@ -755,9 +810,11 @@ const $ = (id) => document.getElementById(id);
     });
     document.querySelectorAll(".vibe-chip").forEach(btn => {
       btn.addEventListener("click", () => {
+        if (state.tasteLoading) return;
         const vibe = btn.dataset.vibe;
         state.taste.vibes = state.taste.vibes.includes(vibe) ? state.taste.vibes.filter(v => v !== vibe) : state.taste.vibes.concat([vibe]);
         renderTasteControls();
+        scheduleTasteMatch();
       });
     });
     ["tasteEra", "tasteType", "tasteLanguage", "tasteRuntime", "tasteZeitgeist", "ratingFlex"].forEach(id => {
@@ -768,6 +825,7 @@ const $ = (id) => document.getElementById(id);
         state.taste.runtime = $("tasteRuntime").value;
         state.taste.zeitgeist = $("tasteZeitgeist").value;
         state.taste.rating_flexibility = Number($("ratingFlex").value);
+        scheduleTasteMatch();
       });
     });
 
@@ -948,7 +1006,7 @@ const $ = (id) => document.getElementById(id);
       refreshHearts(id);
       renderCollections();
       if (state.viewingList) renderGrid();
-      if (state.forYou) runTasteMatch();
+      if (state.forYou && !state.tasteLoading) runTasteMatch();
       try {
         const r = wasFav
           ? await authedFetch(`/api/favorites/${id}`, { method: "DELETE" })
@@ -968,7 +1026,7 @@ const $ = (id) => document.getElementById(id);
         state.favorites = new Set(state.favoritesList.map((m) => m.id));
         renderCollections();
         renderGrid();
-        if (state.forYou) runTasteMatch();
+        if (state.forYou && !state.tasteLoading) runTasteMatch();
       } catch (e) { /* ignore */ }
     }
 
